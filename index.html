@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Salgado Technologies — IP-Easy</title>
+
+<!-- Leaflet (map) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+  :root{--bg:#0b0b0f;--fg:#eaf2ff;--muted:#9fb3c9;--card:#12141c;--line:#1f2637;--accent:#3aa0ff;--ok:#60d394;--warn:#ffd166}
+  *{box-sizing:border-box;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  body{margin:0;background:#0b0b0f;color:var(--fg)}
+  header{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:18px;border-bottom:1px solid var(--line);background:#0e111a}
+  header img{height:130px;width:auto;border-radius:12px;background:#000}
+  h1{margin:0;font-size:26px}
+  .sub{color:var(--muted)}
+  main{padding:18px;max-width:1240px;margin:auto}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+  label{display:block;margin:8px 0 6px;color:#cfe0f8;font-weight:600}
+  input,button{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:#0f1422;color:var(--fg)}
+  button{cursor:pointer;background:var(--accent);color:#001129;font-weight:700;border:none}
+  .row{display:grid;grid-template-columns:1fr 180px 180px;gap:10px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .out{background:#0f1422;border:1px solid var(--line);border-radius:12px;padding:12px}
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:middle}
+  th{color:#cfe0f8}
+  .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#142745;border:1px solid #21406b;color:#9ed1ff;font-size:12px}
+  .pill.blue{background:#163a5c;border-color:#2d6aa0;color:#9ed1ff}
+  .pill.gray{background:#2b2f3a;border-color:#3e4556;color:#d7deea}
+  small{color:var(--muted)}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+  .mini{padding:6px 10px;border-radius:10px;font-size:13px}
+  .copy{background:#1b2a44;color:#cde2ff;border:1px solid #2a4270}
+  tr.recommended{outline:2px solid var(--ok);outline-offset:-2px;background:#0f1a12}
+  .hero{flex:1;display:flex;justify-content:flex-end;align-items:center}
+  .heroTitle{font-size:clamp(40px,8vw,120px);font-weight:900;letter-spacing:.5px;color:#ffffff;opacity:1;white-space:nowrap;margin-right:8px}
+
+  .twoCol{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  textarea{width:100%;min-height:130px;resize:vertical;padding:12px;border-radius:12px;border:1px solid var(--line);background:#0f1422;color:var(--fg)}
+  select{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:#0f1422;color:var(--fg)}
+  .note{background:#101b2b;border:1px dashed #28456e;color:#cde2ff;padding:10px;border-radius:10px;margin-top:10px}
+  .hints{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+  .muted{color:var(--muted)}
+  .right{display:flex;justify-content:flex-end}
+  /* VLSM toggle alignment */
+  .vlsm-toggles{margin-top:12px;display:grid;row-gap:12px}
+  .vlsm-toggles .row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;column-gap:10px}
+  .vlsm-toggles .row select{max-width:140px}
+
+  /* Map container height */
+  #geoMap{height:220px;border-radius:12px;overflow:hidden}
+</style>
+
+<!-- PDF libs for client-side export (no print dialog) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+</head>
+<body>
+  <header>
+    <img id="logo" alt="Salgado Technologies logo" src="LOGO VIDEO black.png" onerror="this.style.display='none'"/>
+    <div>
+      <h1>Salgado Technologies</h1>
+      <div class="sub">Network Planning Toolkit</div>
+    </div>
+    <div class="hero"><span class="heroTitle">IP-Easy</span></div>
+  </header>
+
+  <main>
+    <div class="card" style="margin-bottom:16px">
+      <label for="ip">IPv4 address (only)</label>
+      <div class="row">
+        <input id="ip" placeholder="e.g., 10.0.0.137" />
+        <input id="need" type="number" min="1" step="1" placeholder="Devices needed (optional)" />
+        <button id="go">Analyze</button>
+      </div>
+      <small>Enter an IP and press <b>Analyze</b>. Optionally add <b>Devices needed</b> to auto-highlight the smallest subnet that fits and suggest a gateway. No mask input needed.</small>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <h2 style="margin:0 0 8px">IP Summary</h2>
+        <div id="quick" class="out">Waiting for input…</div>
+        <div class="toolbar">
+          <button id="copyBin" class="mini copy" title="Copy binary address">Copy Binary</button>
+          <button id="printPage" class="mini">Print</button>
+          <button id="exportPdf" class="mini">Export PDF</button>
+        </div>
+      </section>
+      <section class="card">
+        <h2 style="margin:0 0 8px">Binary (8 bits per octet)</h2>
+        <div id="bin" class="out">—</div>
+        <div class="note" style="margin-top:10px">
+          <b>IPv4 Class Reference</b><br/>
+          <b>Class A:</b> 0–127 → Default Mask /8 (255.0.0.0)<br/>
+          <b>Class B:</b> 128–191 → Default Mask /16 (255.255.0.0)<br/>
+          <b>Class C:</b> 192–223 → Default Mask /24 (255.255.255.0)<br/>
+          <b>Class D:</b> 224–239 → Multicast<br/>
+          <b>Class E:</b> 240–255 → Experimental / Reserved
+        </div>
+      </section>
+    </div>
+
+    <!-- Public IP info for the IP ENTERED by the user -->
+    <section class="card" style="margin-top:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 8px">
+        <h2 style="margin:0">My IP Information</h2>
+        <button id="btnAutoIP" class="mini">Public IP Discover</button>
+      </div>
+      <div class="grid">
+        <div id="geoInfo" class="out" style="min-height:150px">
+          <div>Enter an IP and click <b>Analyze</b> to see ISP, city, region and country here.</div>
+        </div>
+        <div id="geoMap"></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+      <h2 style="margin:0 0 8px">Quick Subnet Picks (by host capacity)</h2>
+      <small>We compute network details from your IP for common masks. Each row includes <b>wildcard</b> (for ACL/OSPF) and a <b>Copy</b> button.</small>
+      <div class="note" style="margin-top:8px;margin-bottom:8px">
+        <b>Legend:</b> <span class="pill blue">P2P Link (RFC 3021)</span> — use <span class="mono">/31</span> for router-to-router links.
+        <span class="pill gray">Single Host</span> — use <span class="mono">/32</span> for loopbacks or single-host addresses.
+      </div>
+      <div class="out" style="margin-top:10px">
+        <div style="overflow:auto">
+          <table id="tbl">
+            <thead>
+              <tr>
+                <th>Usable Hosts</th>
+                <th>Prefix Size</th>
+                <th>Mask</th>
+                <th>Wildcard</th>
+                <th>Block Size</th>
+                <th>Network</th>
+                <th>First</th>
+                <th>Last</th>
+                <th>Broadcast</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <small id="gwHint" style="display:block;margin-top:8px"></small>
+    </section>
+  
+    <section class="card" style="margin-top:16px">
+      <h2 style="margin:0 0 8px">VLSM Assistant (optional)</h2>
+      <small>Enter **PC counts per subnet** (not including the gateway). We’ll add the gateway automatically, optionally apply a growth margin, and fit the smallest possible subnets inside a base block that contains your IP.</small>
+      <div class="twoCol" style="margin-top:10px">
+        <div>
+          <label for="vlsmList">PCs per subnet (we'll add the gateway)</label>
+          <textarea id="vlsmList" placeholder="e.g. 5, 2, 5, 1, 1 (PC counts; gateway added automatically)&#10;or one per line"></textarea>
+        </div>
+        <div>
+          <label for="vlsmBase">Base block</label>
+          <select id="vlsmBase">
+            <option value="auto" selected>Auto (by class)</option>
+            <option value="24">/24</option>
+            <option value="23">/23</option>
+            <option value="22">/22</option>
+            <option value="21">/21</option>
+            <option value="20">/20</option>
+          </select>
+
+          <div class="vlsm-toggles">
+            <label class="row" for="addGw">
+              <input id="addGw" type="checkbox" checked />
+              <span>Add 1 for gateway (recommended)</span>
+              <span></span>
+            </label>
+            <label class="row" for="addMargin">
+              <input id="addMargin" type="checkbox" checked />
+              <span>Add growth margin</span>
+              <select id="marginPct">
+                <option value="10">+10%</option>
+                <option value="20" selected>+20%</option>
+                <option value="30">+30%</option>
+                <option value="50">+50%</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="toolbar" style="margin-top:10px">
+            <button id="runVlsm">Run VLSM</button>
+            <button id="clearVlsm" class="mini">Clear</button>
+          </div>
+
+          <div id="comcastNote" class="note" style="display:none">
+            <b>Comcast/Xfinity:</b> Common gateways default to <span class="mono">.1</span> on the LAN and may ship with LAN <span class="mono">10.0.0.0/24</span>.<br/>
+            If your modem/router uses <span class="mono">10.0.0.1</span>, avoid overlapping that network or change the gateway to prevent conflicts.
+          </div>
+        </div>
+      </div>
+
+      <div class="out" style="margin-top:12px">
+        <div style="overflow:auto">
+          <table id="vlsmTbl">
+            <thead>
+              <tr>
+                <th>Need</th>
+                <th>Prefix Size</th>
+                <th>Mask</th>
+                <th>Wildcard</th>
+                <th>Network</th>
+                <th>Gateway</th>
+                <th>First</th>
+                <th>Last</th>
+                <th>Broadcast</th>
+                <th>DHCP Pool</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="note"><b>Tip – recommended margins:</b> Home/Micro: 0–10%. Small business: 20–30% (default). Guests/fast growth: 50–100% or pick a larger base block.</div>
+      <div class="hints">
+        <div id="super23" class="muted"></div>
+        <div id="super22" class="muted"></div>
+      </div>
+    </section>
+
+  </main>
+
+<script>
+// ===== helpers =====
+const $ = s => document.querySelector(s);
+const oct = s => s.split('.').map(n=>Number(n));
+function validIPv4(ip){return /^\d+\.\d+\.\d+\.\d+$/.test(ip) && oct(ip).every(x=>x>=0&&x<=255)}
+function ipToInt(ip){return oct(ip).reduce((a,o)=> (a<<8)+o,0)>>>0}
+function intToIp(n){return [24,16,8,0].map(s=> (n>>>s)&255).join('.')}
+function ipClass(ip){const f=oct(ip)[0];
+  if(f>=1 && f<=126) return 'A';
+  if(f===127) return 'Loopback (127/8)';
+  if(f>=128 && f<=191) return 'B';
+  if(f>=192 && f<=223) return 'C';
+  if(f>=224 && f<=239) return 'D (Multicast)';
+  return 'E (Reserved)';
+}
+function dottedFromCIDR(n){const bits='1'.repeat(n).padEnd(32,'0');
+  return bits.match(/.{1,8}/g).map(b=>parseInt(b,2)).join('.')}
+function wildcardFromMask(dot){return dot.split('.').map(x=>255-Number(x)).join('.')}
+function calcBlockOctet(cidr){return (cidr<=8)?1:(cidr<=16)?2:(cidr<=24)?3:4}
+function calcNet(ipInt, cidr){
+  const mask = cidr===0?0:(~0 << (32-cidr))>>>0;
+  const net = ipInt & mask; const bc = net | (~mask>>>0);
+  const total = 2**(32-cidr);
+  let usable=0, first='', last='';
+  if(cidr===32){usable=1; first=last=intToIp(ipInt)}
+  else if(cidr===31){usable=2; first=intToIp(net); last=intToIp(bc)}
+  else {usable=Math.max(0,total-2); first=intToIp(net+1); last=intToIp(bc-1)}
+  return {network:intToIp(net), broadcast:intToIp(bc), total, usable, first, last};
+}
+function toBinaryDotted(ip){ return oct(ip).map(n=> n.toString(2).padStart(8,'0')).join('.'); }
+function annotate(ip){
+  const [f,s]=oct(ip); const tags=[];
+  if((f===10) || (f===172 && s>=16 && s<=31) || (f===192 && s===168)) tags.push('Private');
+  if(f===127) tags.push('Loopback');
+  if(f===169 && s===254) tags.push('Link-local (APIPA)');
+  if(f>=224 && f<=239) tags.push('Multicast');
+  if(f>=240) tags.push('Reserved');
+  return tags;
+}
+
+// ===== table builder =====
+const CIDRS = Array.from({length:32}, (_,i)=>32 - i);
+function buildTable(ip){
+  const tbody = $('#tbl tbody');
+  tbody.innerHTML='';
+  if(!validIPv4(ip)) return [];
+  const ipInt = ipToInt(ip);
+  const rows = [];
+  for(const c of CIDRS){
+    let badge = '';
+    if(c===31){ badge = ' <span class="pill blue">P2P Link (RFC 3021)</span>'; }
+    else if(c===32){ badge = ' <span class="pill gray">Single Host</span>'; }
+    const info = calcNet(ipInt,c);
+    const mask = dottedFromCIDR(c);
+    const wc = wildcardFromMask(mask);
+    const blockOct = calcBlockOctet(c);
+    const block = 256 - mask.split('.')[blockOct-1];
+    const tr = document.createElement('tr');
+    tr.dataset.usable = info.usable;
+    tr.dataset.cidr = c;
+    tr.innerHTML = `
+      <td>${info.usable}</td>
+      <td>/${c}${badge}</td>
+      <td>${mask}</td>
+      <td>${wc}</td>
+      <td>${block} (octet ${blockOct})</td>
+      <td>${info.network}</td>
+      <td>${info.first}</td>
+      <td>${info.last}</td>
+      <td>${info.broadcast}</td>
+      <td><button class="mini copy" data-copy="${ip},/${c},${mask},${wc},${info.network},${info.first},${info.last},${info.broadcast}">Copy</button></td>`;
+    tbody.appendChild(tr);
+    rows.push({cidr:c, mask, wc, block, blockOct, ...info});
+  }
+  tbody.querySelectorAll('button.copy').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const text = e.currentTarget.getAttribute('data-copy');
+      navigator.clipboard.writeText(text);
+      e.currentTarget.textContent = 'Copied!';
+      setTimeout(()=> e.currentTarget.textContent='Copy', 900);
+    });
+  });
+  return rows;
+}
+
+function recommendSubnet(devices){
+  const need = Math.max(devices, 2);
+  const rows = Array.from($('#tbl tbody').rows);
+  let picked = null;
+  for(const r of rows){
+    const usable = Number(r.dataset.usable);
+    if(usable >= need){ picked = r; break; }
+  }
+  rows.forEach(r=> r.classList.remove('recommended'));
+  if(picked){
+    picked.classList.add('recommended');
+    picked.scrollIntoView({behavior:'smooth',block:'center'});
+  }
+  return picked;
+}
+
+// =========== Geo lookup + map for the ENTERED IP ===========
+let _leafletMap = null;
+async function loadGeo(ip){
+  const infoEl = document.getElementById('geoInfo');
+  const mapEl  = document.getElementById('geoMap');
+
+  infoEl.innerHTML = '<div>Loading IP info...</div>';
+  mapEl.innerHTML  = '';
+  if(_leafletMap){ _leafletMap.remove(); _leafletMap = null; }
+
+  try{
+    const res = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/json/`, {cache:'no-store'});
+    if(!res.ok) throw new Error('geo http ' + res.status);
+    const data = await res.json();
+
+    const html = `
+      <div><b>IPv4:</b> ${data.ip ?? '—'}</div>
+      <div><b>ISP:</b> ${data.org ?? '—'}</div>
+      <div><b>City:</b> ${data.city ?? '—'}</div>
+      <div><b>Region:</b> ${data.region ?? '—'}</div>
+      <div><b>Country:</b> ${data.country_name ?? '—'}</div>`;
+    infoEl.innerHTML = html;
+
+    if(Number.isFinite(data.latitude) && Number.isFinite(data.longitude)){
+      _leafletMap = L.map('geoMap').setView([data.latitude, data.longitude], 8);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(_leafletMap);
+      L.marker([data.latitude, data.longitude]).addTo(_leafletMap)
+        .bindPopup(`<b>${data.city || ''}${data.city?', ':''}${data.region || ''}</b><br>${data.org || ''}`);
+    }else{
+      mapEl.innerHTML = '<div class="muted" style="padding:8px">No map available for this IP.</div>';
+    }
+  }catch(err){
+    console.error(err);
+    infoEl.innerHTML = '<div style="color:#f88">Failed to load IP information.</div>';
+    mapEl.innerHTML = '';
+  }
+}
+
+// ===== Auto IP Discover (fills the input and runs Analyze) =====
+async function autoDiscoverIP(){
+  try{
+    const res = await fetch('https://ipapi.co/json/', {cache:'no-store'});
+    const data = await res.json();
+    if(data && data.ip && validIPv4(data.ip)){
+      $('#ip').value = data.ip;
+      analyze();
+    } else {
+      alert('Could not detect your public IPv4.');
+    }
+  }catch(e){
+    alert('Auto IP discover failed.');
+  }
+}
+
+// =================== analyze() + hooks ===================
+function analyze(){
+  const ip = $('#ip').value.trim();
+  const needStr = $('#need').value.trim();
+  if(!validIPv4(ip)){
+    $('#quick').textContent='Invalid IPv4.';
+    $('#bin').textContent='—';
+    $('#tbl tbody').innerHTML='';
+    $('#gwHint').textContent='';
+    document.getElementById('geoInfo').innerHTML =
+      '<div>Enter an IP and click <b>Analyze</b> to see ISP, city, region and country here.</div>';
+    document.getElementById('geoMap').innerHTML='';
+    if(_leafletMap){ _leafletMap.remove(); _leafletMap=null; }
+    return;
+  }
+
+  const cls = ipClass(ip);
+  const tags = annotate(ip).map(t=>`<span class="pill">${t}</span>`).join(' ');
+  const classfulMask = (cls==='A')?'/8': (cls==='B')?'/16': (cls==='C')?'/24': '—';
+  const maskDot = (classfulMask==='—')?'—':dottedFromCIDR(Number(classfulMask.slice(1)));
+  $('#quick').innerHTML = `
+    <div><b>IP:</b> ${ip}</div>
+    <div><b>Class:</b> <span class="pill">${cls}</span> ${tags?(' '+tags):''}</div>
+    <div><b>Default (classful) mask:</b> ${classfulMask} ${maskDot!=='—'?('('+maskDot+')'):''}</div>
+    <div><b>Wildcard (classful):</b> ${maskDot!=='—'? wildcardFromMask(maskDot):'—'}</div>
+  `;
+  const binTxt = toBinaryDotted(ip);
+  $('#bin').textContent = binTxt;
+
+  const rows = buildTable(ip);
+
+  $('#gwHint').textContent = '';
+  if(needStr){
+    const need = Number(needStr);
+    const picked = recommendSubnet(need);
+    if(picked){
+      const cells = picked.cells;
+      const cidr = cells[1].textContent;
+      const network = cells[5].textContent;
+      const first = cells[6].textContent;
+      $('#gwHint').textContent = `Devices needed: ${need}. Recommended subnet ${cidr} at network ${network}. Suggested gateway: ${first}`;
+    } else {
+      $('#gwHint').textContent = `Devices needed: ${need}. None of the listed subnets fit — try a larger block (e.g., /19 or /18).`;
+    }
+  }
+
+  $('#copyBin').onclick = ()=>{
+    navigator.clipboard.writeText(binTxt);
+    $('#copyBin').textContent='Copied!';
+    setTimeout(()=>$('#copyBin').textContent='Copy Binary',900);
+  };
+
+  $('#exportPdf').onclick = async ()=>{
+    // Export PDF: full page width, multi-page if needed (no print dialog)
+    const { jsPDF } = window.jspdf;
+    const mainEl = document.querySelector('main');
+    if(!mainEl){ return; }
+    // Render at high scale for quality
+    const baseBg = getComputedStyle(document.body).backgroundColor || '#0b0b0f';
+    const canvas = await html2canvas(mainEl, { scale: 2, backgroundColor: baseBg, useCORS: true });
+    const imgW = canvas.width;
+    const imgH = canvas.height;
+
+    // PDF doc (A4 portrait)
+    const pdf = new jsPDF('p','pt','a4');
+    const pageWidth  = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    // Scale so image fills the full page width
+    const scale = pageWidth / imgW;
+    const slicePixelHeight = Math.floor(pageHeight / scale); // height in source pixels per page
+
+    const tmp = document.createElement('canvas');
+    const tctx = tmp.getContext('2d');
+
+    for (let y = 0, page = 0; y < imgH; y += slicePixelHeight, page++) {
+      const sliceH = Math.min(slicePixelHeight, imgH - y);
+      tmp.width = imgW;
+      tmp.height = sliceH;
+      // draw slice from the big canvas
+      tctx.clearRect(0,0,tmp.width,tmp.height);
+      tctx.drawImage(canvas, 0, y, imgW, sliceH, 0, 0, imgW, sliceH);
+      const imgData = tmp.toDataURL('image/png');
+      if (page > 0) pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, sliceH * scale);
+    }
+
+    const ipVal = (document.getElementById('ip')?.value || 'ip-easy').replace(/\./g,'-');
+    pdf.save(`ip-easy_${ipVal}.pdf`);
+  };
+
+  $('#printPage').onclick = ()=> window.print();
+
+  loadGeo(ip);
+}
+
+// Bind actions
+document.getElementById('go').onclick = analyze;
+document.getElementById('ip').addEventListener('keydown',e=>{ if(e.key==='Enter') analyze(); });
+document.getElementById('need').addEventListener('keydown',e=>{ if(e.key==='Enter') analyze(); });
+document.getElementById('btnAutoIP').addEventListener('click', autoDiscoverIP);
+
+// ===== VLSM =====
+function parseNeedsList(txt){
+  return txt.split(/[^0-9]+/).map(x=>Number(x)).filter(x=>Number.isFinite(x) && x>0);
+}
+function nextPow2Hosts(n){
+  for(let c=32; c>=0; c--){
+    if(c===32){ if(n<=1) return 32; }
+    else if(c===31){ if(n<=2) return 31; }
+    else{
+      const usable = Math.max(0, (2**(32-c))-2);
+      if(usable>=n) return c;
+    }
+  }
+  return 0;
+}
+function alignDown(n, cidr){
+  const mask = cidr===0?0:(~0 << (32-cidr))>>>0;
+  return n & mask;
+}
+function alignUp(n, cidr){
+  const size = 2**(32-cidr);
+  return (n + size - 1) & ~(size - 1);
+}
+function classfulBaseCIDR(cls){
+  if(cls==='A') return 8;
+  if(cls==='B') return 16;
+  if(cls==='C') return 24;
+  return 24;
+}
+function computeBase(ipInt, cls, baseSel){
+  let baseCidr;
+  if(baseSel==='auto'){ baseCidr = classfulBaseCIDR(cls); }
+  else { baseCidr = Number(baseSel); }
+  const baseNet = alignDown(ipInt, baseCidr);
+  const baseBc  = baseNet | (~((~0 << (32-baseCidr))>>>0))>>>0;
+  return {baseCidr, baseNet, baseBc};
+}
+function toDhcpPool(firstInt, lastInt){
+  const start = firstInt+1;
+  const end   = lastInt-1;
+  if(end>=start) return intToIp(start)+' - '+intToIp(end);
+  return '—';
+}
+function updateSupernetHints(ipInt){
+  const c23 = 23, c22 = 22;
+  const n23 = alignDown(ipInt, c23), b23 = n23 | (~((~0 << (32-c23))>>>0))>>>0;
+  const n22 = alignDown(ipInt, c22), b22 = n22 | (~((~0 << (32-c22))>>>0))>>>0;
+  document.getElementById('super23').textContent = 'Supernet /23 around your IP: ' + intToIp(n23) + ' - ' + intToIp(b23) + ' (contains two /24s)';
+  document.getElementById('super22').textContent = 'Supernet /22 around your IP: ' + intToIp(n22) + ' - ' + intToIp(b22) + ' (contains four /24s)';
+}
+function runVLSM(){
+  const ip = document.getElementById('ip').value.trim();
+  let needs = parseNeedsList(document.getElementById('vlsmList').value);
+  if(document.getElementById('addMargin') && document.getElementById('addMargin').checked){
+    const pct = Number(document.getElementById('marginPct') ? document.getElementById('marginPct').value : 0);
+    needs = needs.map(n => Math.ceil(n * (1 + (pct/100))));
+  }
+  if(document.getElementById('addGw') && document.getElementById('addGw').checked){
+    needs = needs.map(n => Math.max(1, n + 1));
+  }
+  const baseSel = document.getElementById('vlsmBase').value;
+  const tbody = document.querySelector('#vlsmTbl tbody');
+  tbody.innerHTML='';
+
+  if(!validIPv4(ip)){ alert('Enter a valid IPv4 first in the top box.'); return; }
+  if(needs.length===0){ alert('Add at least one subnet PC count.'); return; }
+
+  const ipInt = ipToInt(ip);
+  const cls = ipClass(ip);
+  const {baseCidr, baseNet, baseBc} = computeBase(ipInt, cls, baseSel);
+
+  const showComcast = (baseCidr===24 && baseNet===ipToInt('10.0.0.0'));
+  document.getElementById('comcastNote').style.display = showComcast ? 'block' : 'none';
+
+  needs.sort((a,b)=> b-a);
+
+  let cursor = baseNet;
+  const end   = baseBc;
+
+  for(const need of needs){
+    const cidr = nextPow2Hosts(need);
+    const size = 2**(32-cidr);
+    cursor = alignUp(cursor, cidr);
+    const subnetNet = cursor;
+    const subnetBc  = subnetNet + size - 1;
+    if(subnetBc> end){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${need}</td><td colspan="9" style="color:#ffa8a8">Does not fit inside ${intToIp(baseNet)}/${baseCidr}. Try a larger base.</td>`;
+      tbody.appendChild(tr);
+      continue;
+    }
+    const mask = dottedFromCIDR(cidr);
+    const wc   = wildcardFromMask(mask);
+    let firstInt, lastInt, gw, first, last;
+    if(cidr===32){
+      firstInt = lastInt = subnetNet;
+      gw = intToIp(subnetNet);
+      first = last = gw;
+    } else if(cidr===31){
+      firstInt = subnetNet;
+      lastInt  = subnetBc;
+      gw = intToIp(firstInt);
+      first = intToIp(firstInt);
+      last  = intToIp(lastInt);
+    } else {
+      firstInt = subnetNet+1;
+      lastInt  = subnetBc-1;
+      gw = intToIp(firstInt);
+      first = intToIp(firstInt);
+      last  = intToIp(lastInt);
+    }
+    const dhcp = (cidr<=30)? toDhcpPool(firstInt, lastInt) : '—';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${need}</td>
+      <td>/${cidr}</td>
+      <td>${mask}</td>
+      <td>${wc}</td>
+      <td>${intToIp(subnetNet)}</td>
+      <td>${gw}</td>
+      <td>${first}</td>
+      <td>${last}</td>
+      <td>${intToIp(subnetBc)}</td>
+      <td>${dhcp}</td>`;
+    tbody.appendChild(tr);
+
+    cursor = subnetBc + 1;
+  }
+
+  updateSupernetHints(ipInt);
+}
+document.getElementById('runVlsm').onclick = runVLSM;
+document.getElementById('clearVlsm').onclick = ()=>{ document.getElementById('vlsmList').value=''; document.querySelector('#vlsmTbl tbody').innerHTML=''; document.getElementById('comcastNote').style.display='none'; document.getElementById('super23').textContent=''; document.getElementById('super22').textContent=''; };
+
+</script>
+</body>
+</html>
