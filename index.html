@@ -114,6 +114,9 @@ select, input[type='number'] { color: #ffffff !important; }
 .lanDevices{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .lanDevices .mini{width:auto;display:inline-flex;align-items:center;justify-content:center;padding:6px 12px}
 
+
+/* Stack the VLSM inputs under LAN blocks without moving DOM */
+.twoCol{grid-template-columns:1fr !important}
 </style>
 
 <!-- PDF libs -->
@@ -151,6 +154,89 @@ select, input[type='number'] { color: #ffffff !important; }
   #manualBody .grid2{grid-template-columns:1fr}
 }
 </style>
+
+<style>
+/* === P2P /31 Help Modal ============================================ */
+#p2pHelpBackdrop{
+  position:fixed;
+  inset:0;
+  background:rgba(3,7,18,.7);
+  backdrop-filter:saturate(120%) blur(2px);
+  display:none;
+  z-index:9980;
+}
+#p2pHelpModal{
+  position:fixed;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  max-width:860px;
+  max-height:78vh;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:16px;
+  overflow:auto;
+  display:none;
+  z-index:9981;
+  box-shadow:0 20px 60px rgba(0,0,0,.55);
+}
+#p2pHelpHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 16px;
+  border-bottom:1px solid var(--line);
+  background:#0e111a;
+}
+#p2pHelpHeader h3{
+  margin:0;
+  font-size:18px;
+  color:#eaf2ff;
+}
+#p2pHelpClose{
+  appearance:none;
+  border:0;
+  background:#22304a;
+  color:#cfe0f8;
+  border-radius:10px;
+  padding:6px 10px;
+  cursor:pointer;
+  font-weight:700;
+}
+#p2pHelpClose:hover{background:#2b3a5a}
+#p2pHelpBody{
+  padding:14px 16px 10px 16px;
+  font-size:14px;
+}
+#p2pHelpBody table{
+  width:100%;
+  border-collapse:collapse;
+  margin:8px 0 10px 0;
+}
+#p2pHelpBody th,
+#p2pHelpBody td{
+  border-bottom:1px solid var(--line);
+  padding:6px 4px;
+  text-align:left;
+  vertical-align:middle;
+}
+#p2pHelpBody th{
+  color:#cfe0f8;
+}
+#p2pHelpBody code{
+  background:#0f1422;
+  border:1px solid var(--line);
+  padding:0 6px;
+  border-radius:6px;
+}
+#p2pHelpBody ul{
+  margin:.2em 0 .6em 1.2em;
+}
+#p2pHelpBody li{
+  margin:.25em 0;
+}
+</style>
+
 </head>
 <body>
   <header>
@@ -206,7 +292,7 @@ select, input[type='number'] { color: #ffffff !important; }
           <b>IPv4 Class Reference</b><br/>
           <b>Class A:</b> 0–127 → /8 255.0.0.0<br/>
           <b>Class B:</b> 128–191 → /16 255.255.0.0<br/>
-          <b>Class C:</b> 192–223 → /24 255.255.255<br/>
+          <b>Class C:</b> 192–223 → /24 255.255.0<br/>
           <b>Class D:</b> 224–239 → Multicast<br/>
           <b>Class E:</b> 240–255 → Reserved
         </div>
@@ -278,7 +364,9 @@ select, input[type='number'] { color: #ffffff !important; }
   <label class="row" for="p2pLinks">
     <span>Router-to-Router links (<span class="mono">/31</span>)</span>
     <input id="p2pLinks" type="number" min="0" step="1" value="0" style="max-width:120px"/>
-    <span></span>
+    <span>
+      <button type="button" id="p2pHelpBtn" class="mini" style="width:auto">P2P-Router_Help</button>
+    </span>
   </label>
             <label class="row" for="addGw">
               <input id="addGw" type="checkbox" checked />
@@ -458,6 +546,47 @@ select, input[type='number'] { color: #ffffff !important; }
   </div>
 </section>
 
+
+<section id="p2pHelpModal" role="dialog" aria-modal="true" aria-labelledby="p2pHelpTitle" tabindex="-1">
+  <div id="p2pHelpHeader">
+    <h3 id="p2pHelpTitle">P2P /31 Router Links — Help</h3>
+    <button type="button" id="p2pHelpClose">Close</button>
+  </div>
+  <div id="p2pHelpBody">
+    <p class="muted">This helper explains how many <b>P2P /31</b> links you can model based on the number of routers in your topology.</p>
+    <p>Each <code>/31</code> link connects exactly <b>two routers</b>. The maximum number of complete P2P links is:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Routers in topology</th>
+          <th>Max complete /31 links</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>0</td><td>One router alone cannot form a P2P link.</td></tr>
+        <tr><td>2</td><td>1</td><td>Both routers form a single /31 link.</td></tr>
+        <tr><td>3</td><td>1</td><td>Two routers form one link; one router remains unused.</td></tr>
+        <tr><td>4</td><td>2</td><td>Two independent P2P links (Router1–Router2, Router3–Router4).</td></tr>
+        <tr><td>5</td><td>2</td><td>Four routers form two links; one router remains unused.</td></tr>
+        <tr><td>6</td><td>3</td><td>Three complete P2P links.</td></tr>
+        <tr><td>7</td><td>3</td><td>Six routers form three links; one router remains unused.</td></tr>
+        <tr><td>8</td><td>4</td><td>Four complete P2P links.</td></tr>
+        <tr><td>9</td><td>4</td><td>Eight routers form four links; one router remains unused.</td></tr>
+        <tr><td>10</td><td>5</td><td>Five complete P2P links.</td></tr>
+      </tbody>
+    </table>
+    <p><b>General rule:</b> the maximum number of complete links is <code>floor(routers / 2)</code>.</p>
+    <ul>
+      <li>If you enter a higher value in <b>Router-to-Router links (/31)</b>, IP-Easy will still reserve the extra /31 blocks, but some peers may not have a router assigned.</li>
+      <li>Use <code>/31</code> for point-to-point router links (no wasted hosts, no gateway).</li>
+      <li>Use <code>/32</code> for loopbacks and single-host addresses.</li>
+    </ul>
+    <p class="muted">Tip: design your physical or logical topology first (how many routers and links you want), then set <b>Router-to-Router links (/31)</b> so it matches the number of real P2P links you plan to deploy.</p>
+  </div>
+</section>
+<div id="p2pHelpBackdrop" aria-hidden="true"></div>
+
 </main>
 
 <script>
@@ -511,6 +640,22 @@ function buildTable(ip){
     if(c===31){ badge = ' <span class="pill blue">P2P Link (RFC 3021)</span>'; }
     else if(c===32){ badge = ' <span class="pill gray">Single Host</span>'; }
     const info = calcNet(ipInt,c);
+    // --- IP-Easy display policy to match VLSM table ---
+    // If 'Add 1 for gateway' is checked in VLSM, advance First by +1 (.2 in /24)
+    // Always reserve the last usable for the Switch on display (Last -> -1), except for /31 and /32
+    const addGwChk = document.getElementById('addGw');
+    const addGwFlag = addGwChk ? !!addGwChk.checked : true; // default true if toggle not present
+    let firstDisp = info.first, lastDisp = info.last;
+    if (c <= 30 && c !== 31 && c !== 32) {
+      if (addGwFlag) {
+        // move first up by one host
+        const fInt = ipToInt(info.first) + 1;
+        firstDisp = intToIp(fInt);
+      }
+      // reserve last usable for switch on display
+      const lInt = ipToInt(info.last) - 1;
+      lastDisp = intToIp(lInt);
+    }
     const mask = dottedFromCIDR(c);
     const wc = wildcardFromMask(mask);
     const blockOct = calcBlockOctet(c);
@@ -525,10 +670,10 @@ function buildTable(ip){
       <td>${wc}</td>
       <td>${block} (octet ${blockOct})</td>
       <td>${info.network}</td>
-      <td>${info.first}</td>
-      <td>${info.last}</td>
+      <td>${firstDisp}</td>
+      <td>${lastDisp}</td>
       <td>${info.broadcast}</td>
-      <td><button class="mini copy" data-copy="${ip},/${c},${mask},${wc},${info.network},${info.first},${info.last},${info.broadcast}">Copy</button></td>`;
+      <td><button class="mini copy" data-copy="${ip},/${c},${mask},${wc},${info.network},${firstDisp},${lastDisp},${info.broadcast}">Copy</button></td>`;
     tbody.appendChild(tr);
     rows.push({cidr:c, mask, wc, block, blockOct, ...info});
   }
@@ -803,13 +948,17 @@ function runVLSM(){
     return {name, need: n};
   });
 
-  // Sort by need desc
-  needsArr.sort((a,b)=>b.need-a.need);
+  // Sort by need desc but keep office order when needs are equal
+  needsArr.sort((a,b)=>{
+    if (b.need !== a.need) return b.need - a.need;
+    return a.name.localeCompare(b.name);
+  });
 
   
   // === Reserve Router-to-Router /31 links first (if any) ===
   const p2pInput = document.getElementById('p2pLinks');
   const p2pCount = Math.max(0, Number(p2pInput ? p2pInput.value : 0) | 0);
+  let lanStart = baseNet;
   if(p2pCount>0){
     let p2pCursor = baseNet;
     for(let i=0;i<p2pCount;i++){
@@ -830,13 +979,22 @@ function runVLSM(){
         p2pCursor = subnetBc + 1;
       }
     }
+    lanStart = p2pCursor;
   }
 // VLSM pack inside base
-  let cursor=baseNet, end=baseBc;
+  let cursor=lanStart, end=baseBc;
   for(const item of needsArr){
     const need=item.need;
-    const cidr=nextPow2Hosts(need), size=2**(32-cidr);
-    cursor=alignUp(cursor,cidr);
+    let cidr;
+  if (needsArr.length === 1 && (p2pCount === 0)) {
+    // Force LAN to use the Base block prefix so it matches the classful logic in IP Summary
+    cidr=Number(baseCidr);
+  } else {
+    cidr = nextPow2Hosts(need);
+  }
+  const size = 2 ** (32 - cidr);
+  cursor = alignUp(cursor, cidr);
+
     const subnetNet=cursor, subnetBc=subnetNet+size-1;
     if(subnetBc> end){
       const tr=document.createElement('tr');
@@ -847,8 +1005,21 @@ function runVLSM(){
     let firstInt, lastInt, gw, first, last;
     if(cidr===32){ firstInt=lastInt=subnetNet; gw=intToIp(subnetNet); first=last=gw; }
     else if(cidr===31){ firstInt=subnetNet; lastInt=subnetBc; gw=intToIp(firstInt); first=intToIp(firstInt); last=intToIp(lastInt); }
-    else { firstInt=subnetNet+1; lastInt=subnetBc-1; gw=intToIp(firstInt); first=intToIp(firstInt); last=intToIp(lastInt); }
+    else {
+      // Usable host range (raw, without reservations)
+      firstInt = subnetNet + 1;
+      lastInt  = subnetBc  - 1;
+      // Display policy: if gateway is reserved, move "First" one up; always reserve last usable for Switch
+      const swReserved = true;
+      let dispFirst = firstInt + (addGw ? 1 : 0);
+      let dispLast  = lastInt  - (swReserved ? 1 : 0);
+      gw    = intToIp(firstInt);
+      first = intToIp(dispFirst);
+      last  = intToIp(dispLast);
+    }
+    // DHCP pool remains firstInt+1 .. lastInt-1 (excludes gateway and switch automatically)
     const dhcp=(cidr<=30)? toDhcpPool(firstInt,lastInt) : '—';
+
     const tr=document.createElement('tr');
     tr.innerHTML=`<td>${item.name}</td><td>${need}</td><td>/${cidr}</td><td>${mask}</td><td>${wc}</td>
       <td>${intToIp(subnetNet)}</td><td>${gw}</td><td>${first}</td><td>${last}</td><td>${intToIp(subnetBc)}</td><td>${dhcp}</td>`;
@@ -943,127 +1114,212 @@ function intToIp_(n){return [24,16,8,0].map(s=>(n>>>s)&255).join('.')}
 
 
 
-function assignIPsFromVLSM(){
-  const subs=getVlsmRows();
-  topoDevices.forEach(d=>{ d.ip=null; d.subnet=null; d.gw=null; d.prefix=null; d.p2p=null; });
-  if(subs.length===0 || topoDevices.length===0){ renderAssignTable(); return; }
 
-  // Split VLSM rows into P2P (/31) vs LAN pools and precompute host lists
-  const p2pPools=[], lanPools=[];
-  const ipToInt_ = (ip)=>ip.split('.').map(Number).reduce((a,b)=>(a<<8)+b,0)>>>0;
-  const intToIp_ = (n)=>[24,16,8,0].map(s=>(n>>>s)&255).join('.');
+    function assignIPsFromVLSM(){
+      const subs = getVlsmRows();
 
-  subs.forEach(s=>{
-    const firstInt=ipToInt_(s.first), lastInt=ipToInt_(s.last);
-    const gwInt = s.gateway && /^\d+\./.test(s.gateway)? ipToInt_(s.gateway):null;
-    const hosts=[];
-    if(s.prefix===31){ hosts.push(s.first, s.last); }
-    else if(s.prefix===32){ hosts.push(s.first); }
-    else{
-      for(let n=firstInt;n<=lastInt;n++){
-        const ip=intToIp_(n);
-        if(gwInt!==null && n===gwInt) continue; // don't consume the gateway
-        hosts.push(ip);
+      // Reset current assignments
+      topoDevices.forEach(d => {
+        d.ip     = null;
+        d.subnet = null;
+        d.gw     = null;
+        d.prefix = null;
+        d.p2p    = null;
+      });
+
+      if (!subs.length || !topoDevices.length){
+        renderAssignTable();
+        return;
       }
-    }
-    const entry={s, hosts};
-    if(s.prefix===31) p2pPools.push(entry); else lanPools.push(entry);
-  });
 
-  // Helper: take first available host from a list of pools
-  function takeFrom(pools){
-    for(let i=0;i<pools.length;i++){
-      const pool=pools[i];
-      if(pool.hosts.length){
-        const ip = pool.hosts.shift();
-        let peer=null;
-        if(pool.s.prefix===31){
-          peer = (ip===pool.s.first) ? pool.s.last : pool.s.first;
+      // Helpers
+      function ipToInt_(ip){
+        return ip.split('.').reduce((a,o)=> (a<<8) + parseInt(o,10), 0) >>> 0;
+      }
+      function intToIp_(n){
+        return [
+          (n>>>24)&255,
+          (n>>>16)&255,
+          (n>>>8)&255,
+          n&255
+        ].join('.');
+      }
+
+      const p2pPools = [];
+      const lanPools = [];
+
+      // Build address pools from VLSM rows
+      subs.forEach(s => {
+        const prefix = s.prefix;
+
+        // /31 – point‑to‑point, two usable IPs, no gateway
+        if (prefix === 31){
+          const hosts = [s.first, s.last]; // table already stores the two link IPs
+          p2pPools.push({ s, hosts });
+          return;
         }
-        return {ip, sub: pool.s, peer};
+
+        // /32 – single‑host block
+        if (prefix === 32){
+          const hosts = [s.first];
+          lanPools.push({ s, hosts });
+          return;
+        }
+
+        // Normal LAN: recompute full usable range from Network + Prefix
+        const netInt   = ipToInt_(s.network);           // network address
+        const size     = Math.pow(2, 32 - prefix);      // total addresses in block
+        const bcInt    = netInt + size - 1;             // broadcast
+        const firstInt = netInt + 1;                    // gateway (.1 in a /24)
+        const lastInt  = bcInt - 1;                     // last usable host
+
+        const hosts = [];
+        // Host list excludes the gateway; PCs will start at .2
+        for (let n = firstInt + 1; n <= lastInt; n++){
+          hosts.push(intToIp_(n));
+        }
+
+        lanPools.push({ s, hosts });
+      });
+
+      // Generic "take first free IP" from a pool collection
+      function takeFrom(pools){
+        for (let i = 0; i < pools.length; i++){
+          const pool = pools[i];
+          if (pool.hosts.length){
+            const ip = pool.hosts.shift();
+            let peer = null;
+
+            if (pool.s.prefix === 31){
+              // determine the peer for the /31 link
+              peer = (ip === pool.s.first) ? pool.s.last : pool.s.first;
+            }
+
+            return { ip, sub: pool.s, peer };
+          }
+        }
+        return { ip: null, sub: null, peer: null };
       }
-    }
-    return {ip:null, sub:null, peer:null};
-  }
 
-  // ---------- Engineering policy ----------
-  // Modems -> gateway of first LAN (do NOT consume pool)
-  
-  // Modems -> last usable of first LAN (reserve it)
-  topoDevices.filter(d=>d.type==='mdm').forEach(d=>{
-    const p = lanPools[0];
-    if(p){
-      const pick = p.s;
-      d.subnet = pick.network; 
-      d.prefix = '/' + pick.prefix;
-      d.gw     = pick.gateway || pick.first;
-      // last usable available at end of p.hosts (gw already excluded)
-      if(p.hosts.length){
-        d.ip = p.hosts[p.hosts.length-1];
-        p.hosts.pop(); // reserve it so switch can take the next last
-      }else{
-        d.ip = '(no LAN hosts)';
+      const routerPairs = [];
+
+      // 1) Routers – prefer /31 links, then fall back to LANs
+      topoDevices.filter(d => d.type === 'rtr').forEach(d => {
+        let t = takeFrom(p2pPools);
+        if (!t.ip) t = takeFrom(lanPools);
+
+        if (t.ip && t.sub){
+          d.subnet = t.sub.network;
+          d.prefix = '/' + t.sub.prefix;
+          d.gw     = (t.sub.prefix === 31) ? 'P2P — no gateway' : (t.sub.gateway || '');
+          d.ip     = t.ip;
+          d.p2p    = (t.sub.prefix === 31) ? (t.sub.network + '/31 • peer ' + t.peer) : '—';
+
+          if (t.sub.prefix === 31){
+            routerPairs.push({
+              cidr: t.sub.network + '/31',
+              a: t.ip,
+              b: t.peer
+            });
+          }
+        } else {
+          d.subnet = '—';
+          d.prefix = '—';
+          d.gw     = '—';
+          d.ip     = '—';
+          d.p2p    = '—';
+        }
+      });
+
+      // 2) Modem – last usable IP of FIRST LAN block
+      const modemDevices  = topoDevices.filter(d => d.type === 'mdm');
+      const switchDevices = topoDevices.filter(d => d.type === 'swi');
+
+      if (lanPools.length){
+        const firstLan = lanPools[0];
+
+        // Reserve last host for modem(s)
+        modemDevices.forEach(d => {
+          if (firstLan.hosts.length){
+            const ip = firstLan.hosts.pop(); // highest remaining IP
+            d.subnet = firstLan.s.network;
+            d.prefix = '/' + firstLan.s.prefix;
+            d.gw     = firstLan.s.gateway || '';
+            d.ip     = ip;
+            d.p2p    = '—';
+          } else {
+            d.subnet = '—';
+            d.prefix = '—';
+            d.gw     = '—';
+            d.ip     = '—';
+            d.p2p    = '—';
+          }
+        });
+
+        // 3) Switch – second‑to‑last usable IP of FIRST LAN block
+        switchDevices.forEach(d => {
+          if (firstLan.hosts.length){
+            const ip = firstLan.hosts.pop(); // now penultimate after modem reservation
+            d.subnet = firstLan.s.network;
+            d.prefix = '/' + firstLan.s.prefix;
+            d.gw     = firstLan.s.gateway || '';
+            d.ip     = ip;
+            d.p2p    = '—';
+          } else {
+            d.subnet = '—';
+            d.prefix = '—';
+            d.gw     = '—';
+            d.ip     = '—';
+            d.p2p    = '—';
+          }
+        });
+      } else {
+        // No LANs at all: mark modem/switch as unassigned
+        modemDevices.concat(switchDevices).forEach(d => {
+          d.subnet = '—';
+          d.prefix = '—';
+          d.gw     = '—';
+          d.ip     = '—';
+          d.p2p    = '—';
+        });
       }
-    }else{
-      d.subnet='—'; d.prefix='—'; d.gw='—'; d.ip='(no LAN)';
+
+      // 4) PCs – consume remaining LAN addresses round‑robin across all LAN pools
+      const pcDevices = topoDevices.filter(d => d.type === 'pc');
+      let lanIndex = 0;
+
+      pcDevices.forEach(d => {
+        let assigned = false;
+
+        for (let attempts = 0; attempts < lanPools.length; attempts++){
+          const pool = lanPools[lanIndex % lanPools.length];
+          lanIndex++;
+
+          if (pool.hosts.length){
+            const ip = pool.hosts.shift();
+            d.subnet = pool.s.network;
+            d.prefix = '/' + pool.s.prefix;
+            d.gw     = pool.s.gateway || '';
+            d.ip     = ip;
+            d.p2p    = '—';
+            assigned = true;
+            break;
+          }
+        }
+
+        if (!assigned){
+          d.subnet = '—';
+          d.prefix = '—';
+          d.gw     = '—';
+          d.ip     = '—';
+          d.p2p    = '—';
+        }
+      });
+
+      // Finally, refresh the table and P2P summary
+      renderAssignTable();
+      buildP2PSummary(routerPairs);
     }
-  });
-
-
-  // Routers -> prefer /31 pools; else take from LAN pools
-  const routerPairs=[]; // for summary
-  topoDevices.filter(d=>d.type==='rtr').forEach(d=>{
-    let t = takeFrom(p2pPools);
-    if(!t.ip) t = takeFrom(lanPools);
-    if(t.ip){
-      d.subnet=t.sub.network; d.prefix='/'+t.sub.prefix;
-      d.gw = (t.sub.prefix===31)? 'P2P — no gateway' : (t.sub.gateway || t.sub.first);
-      d.ip = t.ip;
-      d.p2p = (t.sub.prefix===31) ? `${t.sub.network}/31 • peer ${t.peer}` : '—';
-      if(t.sub.prefix===31) routerPairs.push({cidr:`${t.sub.network}/31`, a:t.ip, b:t.peer});
-    }else{ d.subnet='—'; d.prefix='—'; d.gw='—'; d.ip='(no hosts)'; d.p2p='—'; }
-  });
-
-  // Switches -> last usable of first LAN pool (reserve it)
-  
-  // Switches -> last usable remaining of first LAN (after modem reservation)
-  topoDevices.filter(d=>d.type==='swi').forEach(d=>{
-    const p = lanPools[0];
-    if(p){
-      const pick = p.s;
-      d.subnet=pick.network; d.prefix='/' + pick.prefix; d.gw=pick.gateway || pick.first;
-      if(p.hosts.length){
-        d.ip = p.hosts[p.hosts.length-1]; // take current last
-        p.hosts.pop();
-      }else{
-        d.ip='(no LAN hosts)';
-      }
-    }else{ d.subnet='—'; d.prefix='—'; d.gw='—'; d.ip='(no LAN)'; }
-  });
-
-
-  // PCs -> remaining LAN pools in round-robin
-  const pcs = topoDevices.filter(d=>d.type==='pc');
-  let rr=0;
-  pcs.forEach(d=>{
-    let chosen=null;
-    if(lanPools.length){
-      for(let k=0;k<lanPools.length;k++){
-        const idx=(rr++)%lanPools.length;
-        if(lanPools[idx].hosts.length){ chosen=lanPools[idx]; break; }
-      }
-    }
-    if(chosen){
-      d.subnet=chosen.s.network; d.prefix='/'+chosen.s.prefix; d.gw=chosen.s.gateway || chosen.s.first;
-      d.ip = chosen.hosts.shift() || '(no more hosts)';
-    }else{
-      d.subnet='—'; d.prefix='—'; d.gw='—'; d.ip='(no more hosts)';
-    }
-  });
-
-  renderAssignTable();
-  buildP2PSummary(routerPairs);
-}
 
 
 
@@ -1227,7 +1483,7 @@ document.getElementById('clearTopo').addEventListener('click', clearTopology);
   // Hook after Run VLSM (additive; does not replace existing handler)
   const runBtn = document.getElementById('runVLSM') || document.getElementById('runVlsm') || document.querySelector('[id*=runVlsm]');
   if(runBtn){
-    runBtn.addEventListener('click', ()=> setTimeout(assignIPsByOffice, 0));
+    // runBtn.addEventListener('click', ()=> setTimeout(assignIPsByOffice, 0)); // disabled: IP policy handled by assignIPsFromVLSM
   }
 
   // Keep Office choices fresh if LAN names change
@@ -1614,6 +1870,41 @@ document.getElementById('clearTopo').addEventListener('click', clearTopology);
     // restore page scroll
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
+  });
+})();
+</script>
+
+
+<script>
+(function(){
+  const btn = document.getElementById('p2pHelpBtn');
+  const modal = document.getElementById('p2pHelpModal');
+  const backdrop = document.getElementById('p2pHelpBackdrop');
+  const closeBtn = document.getElementById('p2pHelpClose');
+
+  if (!btn || !modal || !backdrop || !closeBtn) return;
+
+  function openModal(){
+    modal.style.display = 'block';
+    backdrop.style.display = 'block';
+    modal.focus();
+  }
+  function closeModal(){
+    modal.style.display = 'none';
+    backdrop.style.display = 'none';
+  }
+
+  btn.addEventListener('click', openModal);
+  closeBtn.addEventListener('click', closeModal);
+  backdrop.addEventListener('click', closeModal);
+
+  window.addEventListener('keydown', function(e){
+    if (e.key === 'Escape'){
+      if (modal.style.display === 'block'){
+        e.preventDefault();
+        closeModal();
+      }
+    }
   });
 })();
 </script>
