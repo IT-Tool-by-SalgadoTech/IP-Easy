@@ -78,6 +78,16 @@
   #assignWrap{margin-top:12px}
   #assignTbl th, #assignTbl td{white-space:nowrap}
 
+  /* Per-office banding in Topology Builder assignment table */
+  #assignTbl tbody tr.officeBand0{background:rgba(58,160,255,0.10);}
+  #assignTbl tbody tr.officeBand1{background:rgba(96,211,148,0.10);}
+  #assignTbl tbody tr.officeBand2{background:rgba(255,209,102,0.10);}
+  #assignTbl tbody tr.officeBand3{background:rgba(255,138,91,0.10);}
+  #assignTbl tbody tr.officeBand4{background:rgba(158,209,255,0.08);}
+  #assignTbl tbody tr.officeBand5{background:rgba(143,148,255,0.10);}
+  #assignTbl tbody tr.officeBand6{background:rgba(255,163,240,0.10);}
+  #assignTbl tbody tr.officeBand7{background:rgba(111,219,230,0.10);}
+
   /* LAN blocks */
   #lanBlocks{display:flex;flex-direction:column;gap:8px}
   .lanCard{background:#0f1422;border:1px solid var(--line);border-radius:10px;padding:8px;display:grid;grid-template-columns:1fr 36px;gap:8px;align-items:center}
@@ -350,16 +360,6 @@ select, input[type='number'] { color: #ffffff !important; }
   <div>
 
         <div>
-          <label for="vlsmBase">Base block</label>
-          <select id="vlsmBase">
-            <option value="auto" selected>Auto (by class)</option>
-            <option value="24">/24</option>
-            <option value="23">/23</option>
-            <option value="22">/22</option>
-            <option value="21">/21</option>
-            <option value="20">/20</option>
-          </select>
-
           <div class="vlsm-toggles">
   <label class="row" for="p2pLinks">
     <span>Router-to-Router links (<span class="mono">/31</span>)</span>
@@ -475,75 +475,69 @@ select, input[type='number'] { color: #ffffff !important; }
     <h3 id="manualTitle">How IP-Easy Works — User Guide</h3>
     <div id="manualCloseNote" class="mini" style="background:#22304a;color:#cfe0f8;border-radius:10px;padding:6px 10px;font-weight:700;user-select:none">Close the page with ESC</div>
   </div>
-  <div id="manualBody">
-    <p class="muted" style="margin-top:-2px">This guide explains what <b>IP-Easy</b> is, how each panel works, and tips to export, copy and assign addresses consistently with your <b>IP assignment policy</b>.</p>
+  <div id="manualBody"><p class="muted" style="margin-top:-2px">This guide explains what <b>IP‑Easy</b> is, how each panel works, and tips to export, copy and assign addresses consistently with your <b>IP assignment policy</b>.</p>
 
-    <h4>What is IP-Easy?</h4>
-    <p><b>IP-Easy</b> is a compact IPv4 planning toolkit. Enter any IPv4 address and it produces class info, wildcard, and a full set of <i>Quick Subnet Picks</i>. The <i>Subnet Designer — VLSM</i> reserves router-to-router <code>/31</code> links first and then fits your LANs with margin and gateway rules.</p>
+<h4>What is IP‑Easy?</h4>
+<p><b>IP‑Easy</b> is a compact IPv4 planning toolkit. Enter any IPv4 address and it produces class info, wildcard, and a full set of <i>Quick Subnet Picks</i>. The <i>Subnet Designer — VLSM</i> reserves router‑to‑router <code>/31</code> links first and then fits your LANs with margin and gateway rules.</p>
 
-    <div class="grid2">
-      <div class="cardx">
-        <h4>1) My Public IP Information</h4>
-        <ul>
-          <li>Auto-detects your current public IP, ISP, city/region, and country, and plots an approximate location on the map.</li>
-        </ul>
-      </div>
-      <div class="cardx">
-        <h4>2) Analyze (IPv4 address)</h4>
-        <ul>
-          <li>Type an IPv4 (e.g., <code>10.0.0.137</code>) and press <b>Analyze</b>.</li>
-          <li><b>IP Summary</b>: class tag, classful mask, and wildcard.</li>
-          <li><b>Binary</b>: dotted-binary representation (8 bits per octet) with a <b>Copy Binary</b> button.</li>
-        </ul>
-      </div>
-    </div>
+<h4>1) My Public IP Information</h4>
+<ul>
+<li>Auto‑detects your current public IP, ISP, city/region, and country, and plots an approximate location on the map.</li>
+</ul>
 
-    <h4>Quick Subnet Picks</h4>
-    <ul>
-      <li>Shows network math for every prefix from <code>/32</code> to <code>/0</code>.</li>
-      <li><span class="pill blue">P2P Link (RFC 3021)</span> marks <code>/31</code> — ideal for router-to-router links.</li>
-      <li><span class="pill gray">Single Host</span> marks <code>/32</code> — use for loopbacks/host routes.</li>
-      <li>Each row includes <b>Mask</b>, <b>Wildcard</b>, <b>Block Size</b>, <b>Network</b>, <b>First</b>, <b>Last</b>, and <b>Broadcast</b>, plus a <b>Copy</b> shortcut.</li>
-      <li>When you specify <b>Devices needed</b> (if present), the smallest fitting row is highlighted as <b>Recommended</b>.</li>
-    </ul>
+<h4>2) Analyze (IPv4 address)</h4>
+<ul>
+<li>Type an IPv4 (e.g., <code>10.0.0.137</code>) and press <b>Analyze</b>.</li>
+<li><b>IP Summary</b>: class tag, classful mask, and wildcard.</li>
+<li><b>Binary</b>: dotted‑binary representation (8 bits per octet) with a <b>Copy Binary</b> button.</li>
+</ul>
 
-    <h4>Subnet Designer — VLSM + Topology</h4>
-    <ul>
-      <li><b>Base block</b>: choose <code>Auto</code> (by class) or force a supernet (<code>/24</code>…<code>/20</code>).</li>
-      <li><b>Router-to-Router links (<code>/31</code>)</b>: reserves that many <code>/31</code> pairs <i>first</i> inside the base block and lists them as <b>P2P Link (/31)</b> with both IPs and “P2P — no gateway”.</li>
-      <li><b>Add 1 for gateway</b> (recommended): automatically accounts for the default gateway in each LAN.</li>
-      <li><b>Add growth margin</b>: apply 10–50% overhead to size subnets for the future. Typical picks: Home/Micro 0–10%, Small Business 20–30%, Guests/Growth 50%+.</li>
-      <li><b>Run VLSM</b>: packs LANs after reserving P2P links, returning <b>Network</b>, <b>Gateway</b>, <b>First</b>, <b>Last</b>, <b>Broadcast</b>, and <b>DHCP Pool</b>.</li>
-    </ul>
+<h4>3) Quick Subnet Picks</h4>
+<ul>
+<li>Shows network math for every prefix from <code>/32</code> to <code>/0</code>.</li>
+<li><b>P2P Link (RFC 3021)</b> marks <code>/31</code> — ideal for router‑to‑router links.</li>
+<li><b>Single Host</b> marks <code>/32</code> — use for loopbacks/host routes.</li>
+<li>Each row includes <b>Mask</b>, <b>Wildcard</b>, <b>Block Size</b>, <b>Network</b>, <b>First</b>, <b>Last</b>, and <b>Broadcast</b>, plus a <b>Copy</b> shortcut.</li>
+<li>When you specify <b>Devices needed</b>, the smallest fitting row is highlighted as <b>Recommended</b>.</li>
+</ul>
 
-    <h4>IP Assignment Policy (built-in)</h4>
-    <ul>
-      <li><b>Router</b> → gateway (first usable host, <code>.1</code> in the block).</li>
-      <li><b>Modem</b> → last usable on the first LAN.</li>
-      <li><b>Switch</b> → second-to-last usable on the first LAN (after reserving modem).</li>
-      <li><b>PCs</b> → remaining pool, distributed round-robin across LANs.</li>
-      <li><b>P2P /31</b> → no gateway; the two IPs of the /31 are paired by router order (odd → first IP, even → second IP).</li>
-    </ul>
+<h4>4) Subnet Designer — VLSM + Topology</h4>
+<ul>
+<li><b>Base block</b>: choose <code>Auto</code> (by class) or force a supernet (<code>/24</code>…<code>/20</code>).</li>
+<li><b>Router‑to‑Router links (<code>/31</code>)</b>: reserves that many <code>/31</code> pairs first and lists them as <b>P2P Link</b> with both IPs and “P2P — no gateway”.</li>
+<li><b>Add 1 for gateway</b>: automatically assigns the default gateway in each LAN.</li>
+<li><b>Add growth margin</b>: apply overhead for future expansion (Home 0–10%, Small Business 20–30%, Guests/Growth 50%+).</li>
+<li><b>Run VLSM</b>: generates Network, Gateway, First, Last, Broadcast, and DHCP Pool for all LANs.</li>
+</ul>
 
-    <h4>Export & Utilities</h4>
-    <ul>
-      <li><b>Copy Binary</b>: copies dotted-binary to clipboard.</li>
-      <li><b>Copy</b> (in tables): copies CSV-like row data (IP, prefix, mask, wildcard, etc.).</li>
-      <li><b>Print</b>: prints the current page with your dark theme.</li>
-      <li><b>Export PDF</b>: captures the full planner as a multi-page PDF (A4 portrait).</li>
-    </ul>
+<h4>IP Assignment Policy</h4>
+<ul>
+<li><b>Router</b> → <code>.1</code> (first usable host).</li>
+<li><b>Modem</b> → last usable on the first LAN.</li>
+<li><b>Switch</b> → second‑to‑last usable on the first LAN.</li>
+<li><b>PCs</b> → remaining pool, round‑robin.</li>
+<li><b>P2P /31</b> → no gateway; two IPs paired by router order (odd → first IP, even → second IP).</li>
+</ul>
 
-    <h4>Tips</h4>
-    <ul>
-      <li>Use <b>/31</b> for point-to-point router links (<i>no waste, no gateway</i>).</li>
-      <li>Use <b>/32</b> for loopbacks and single-host addressing.</li>
-      <li>Prefer <b>.1</b> as the gateway convention for consistency with common ISPs and managed LANs.</li>
-      <li>If a LAN does not fit the chosen base, try a larger base (e.g., move from <code>/24</code> to <code>/23</code>).</li>
-    </ul>
+<h4>Export & Utilities</h4>
+<ul>
+<li><b>Copy Binary</b>: copy dotted‑binary string.</li>
+<li><b>Copy</b> buttons in tables: export row data.</li>
+<li><b>Print</b>: prints with dark theme preserved.</li>
+<li><b>Export PDF</b>: produces a multi‑page A4 PDF.</li>
+</ul>
 
-    <h4>Ethical Use</h4>
-    <p class="muted">IP-Easy is designed for legitimate IT planning, troubleshooting, and documentation.</p>
-  </div>
+<h4>Tips</h4>
+<ul>
+<li>Use <b>/31</b> for router‑to‑router links.</li>
+<li>Use <b>/32</b> for loopbacks or single‑host functions.</li>
+<li>Keep gateway as <code>.1</code> for consistency.</li>
+<li>If a LAN doesn’t fit, use a larger base block (e.g., /24 → /23).</li>
+</ul>
+
+<h4>Ethical Use</h4>
+<p class="muted">IP‑Easy is designed for legitimate IT planning, troubleshooting, and documentation.</p>
+</div>
 </section>
 
 
@@ -812,6 +806,42 @@ function makeLanCard(idx, name='', pcs=1){
                      <button class="mini addRouter" title="Add Router">+ Router</button>
                      <button class="mini addSwitch" title="Add Switch">+ Switch</button>
                      <button class="mini addPC"     title="Add PC">+ PC</button>
+                   </div>
+                   <div class="lanBaseRow" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                     <small class="muted" style="margin:0">Base block / prefix:</small>
+                     <select class="lanBaseSel" style="min-width:140px;max-width:200px">
+                       <option value="auto" selected>Auto (by class)</option>
+                       <option value="1">/1</option>
+                       <option value="2">/2</option>
+                       <option value="3">/3</option>
+                       <option value="4">/4</option>
+                       <option value="5">/5</option>
+                       <option value="6">/6</option>
+                       <option value="7">/7</option>
+                       <option value="8">/8</option>
+                       <option value="9">/9</option>
+                       <option value="10">/10</option>
+                       <option value="11">/11</option>
+                       <option value="12">/12</option>
+                       <option value="13">/13</option>
+                       <option value="14">/14</option>
+                       <option value="15">/15</option>
+                       <option value="16">/16</option>
+                       <option value="17">/17</option>
+                       <option value="18">/18</option>
+                       <option value="19">/19</option>
+                       <option value="20">/20</option>
+                       <option value="21">/21</option>
+                       <option value="22">/22</option>
+                       <option value="23">/23</option>
+                       <option value="24">/24</option>
+                       <option value="25">/25</option>
+                       <option value="26">/26</option>
+                       <option value="27">/27</option>
+                       <option value="28">/28</option>
+                       <option value="29">/29</option>
+                       <option value="30">/30</option>
+                     </select>
                    </div>`;
   div.querySelector('.lanDel').addEventListener('click', ()=> { const name=(div.querySelector('.lanName')?.value||'').trim()||`Office ${idx+1}`; div.remove(); removeOfficeData(name); });
   // Wire device adders (UI only; delegating creation to existing addDevice logic)
@@ -878,6 +908,17 @@ setTimeout(()=>{
   if(addBtn) addBtn.addEventListener('click', ()=> addLan('', 8));
   if(clr) clr.addEventListener('click', clearLan);
 },0);
+function getOfficeBaseOverrides(){
+  const wrap=document.getElementById('lanBlocks'); if(!wrap) return {};
+  const map = {};
+  [...wrap.querySelectorAll('.lanCard')].forEach((card,i)=>{
+    const name=(card.querySelector('.lanName')?.value||'').trim()||`Office ${i+1}`;
+    const sel = card.querySelector('.lanBaseSel');
+    const val = sel ? sel.value : 'auto';
+    map[name] = val || 'auto';
+  });
+  return map; // { OfficeName: 'auto' | '1'..'30' }
+}
 function collectLANNames(){
   const wrap=document.getElementById('lanBlocks'); if(!wrap) return [];
   return [...wrap.querySelectorAll('.lanCard')].map((card,i)=>{
@@ -926,8 +967,7 @@ function runVLSM(){
   if(!validIPv4(ip)){ alert('Enter a valid IPv4 first.'); return; }
 
   const ipInt=ipToInt(ip), cls=ipClass(ip);
-  const baseSel=document.getElementById('vlsmBase').value;
-  const {baseCidr,baseNet,baseBc}=computeBase(ipInt,cls,baseSel);
+  const {baseCidr,baseNet,baseBc}=computeBase(ipInt,cls,'auto'); // per-office base: global base stays auto/classful
   document.getElementById('comcastNote').style.display=(baseCidr===24 && baseNet===ipToInt('10.0.0.0'))?'block':'none';
 
   // Build needs from Topology by office
@@ -941,11 +981,16 @@ function runVLSM(){
   const addMargin = document.getElementById('addMargin').checked;
   const pct = Number(document.getElementById('marginPct').value||0);
 
+  // Per-office base/prefix overrides (Auto vs /1-/30)
+  const baseOverrides = getOfficeBaseOverrides();
+
   const needsArr = offices.map(name=>{
     let n = officeCounts[name]||0;
     if(addMargin) n = Math.ceil(n*(1+(pct/100)));
     if(addGw) n = Math.max(1,n+1);
-    return {name, need: n};
+    const sel = baseOverrides[name] ?? 'auto';
+    const forceCidr = (sel && sel !== 'auto') ? Number(sel) : null;
+    return {name, need: n, forceCidr};
   });
 
   // Sort by need desc but keep office order when needs are equal
@@ -986,8 +1031,12 @@ function runVLSM(){
   for(const item of needsArr){
     const need=item.need;
     let cidr;
-  if (needsArr.length === 1 && (p2pCount === 0)) {
-    // Force LAN to use the Base block prefix so it matches the classful logic in IP Summary
+
+  // If this office has a forced prefix (/1–/30), respect it.
+  if (item.forceCidr && item.forceCidr >= 1 && item.forceCidr <= 30){
+    cidr = item.forceCidr;
+  } else if (needsArr.length === 1 && (p2pCount === 0)) {
+    // Original behavior: single LAN with no P2P uses the Base block prefix
     cidr=Number(baseCidr);
   } else {
     cidr = nextPow2Hosts(need);
@@ -1084,12 +1133,27 @@ function enableDrag(el,n){
 function renderAssignTable(){
   if(!topoAssignBody) return;
   topoAssignBody.innerHTML='';
+
+  // Color bands per Office to make large topologies easier to scan
+  const bandClasses = ['officeBand0','officeBand1','officeBand2','officeBand3','officeBand4','officeBand5','officeBand6','officeBand7'];
+  const officeToBand = Object.create(null);
+  let bandIdx = 0;
+
   topoDevices.forEach((d,i)=>{
     const tr=document.createElement('tr');
     const typeTxt = (d.type==='mdm')?'Modem':(d.type==='rtr')?'Router':(d.type==='swi')?'Switch':'PC';
     const nodeEl = document.getElementById(d.id);
     const offSel = nodeEl ? nodeEl.querySelector('.officeSel') : null;
-    const off = offSel ? offSel.value : 'Unassigned';
+    const off = offSel ? (offSel.value || 'Unassigned') : 'Unassigned';
+
+    // Assign a band color for each distinct office name (including Unassigned)
+    const key = off;
+    if(!officeToBand[key]){
+      officeToBand[key] = bandClasses[bandIdx % bandClasses.length];
+      bandIdx++;
+    }
+    tr.classList.add(officeToBand[key]);
+
     tr.innerHTML=`
       <td>${i+1}</td><td>${d.name}</td><td>${typeTxt}</td><td>${off}</td>
       <td>${d.subnet??'—'}</td><td>${d.prefix??'—'}</td><td>${d.gw??'—'}</td><td>${d.ip??'—'}</td><td>${d.p2p??'—'}</td>`;
@@ -1115,113 +1179,184 @@ function intToIp_(n){return [24,16,8,0].map(s=>(n>>>s)&255).join('.')}
 
 
 
-    function assignIPsFromVLSM(){
-      const subs = getVlsmRows();
+    
+function assignIPsFromVLSM(){
+  const subs = getVlsmRows();
 
-      // Reset current assignments
-      topoDevices.forEach(d => {
-        d.ip     = null;
-        d.subnet = null;
-        d.gw     = null;
-        d.prefix = null;
-        d.p2p    = null;
-      });
+  // Reset current assignments
+  topoDevices.forEach(d => {
+    d.ip     = null;
+    d.subnet = null;
+    d.gw     = null;
+    d.prefix = null;
+    d.p2p    = null;
+  });
 
-      if (!subs.length || !topoDevices.length){
-        renderAssignTable();
-        return;
+  if (!subs.length || !topoDevices.length){
+    renderAssignTable();
+    buildP2PSummary([]);
+    return;
+  }
+
+  const GLOBAL_OFFICE = '__GLOBAL__';
+
+  // Read office from the node select; fallback to GLOBAL_OFFICE
+  function getDeviceOfficeKey(d){
+    const nodeEl = document.getElementById(d.id);
+    const offSel = nodeEl ? nodeEl.querySelector('.officeSel') : null;
+    const off    = offSel ? offSel.value : '';
+    if (!off || off === 'Unassigned') return GLOBAL_OFFICE;
+    return off;
+  }
+
+  const p2pPools = [];              // /31 links (global)
+  const lanPoolsByOffice = {};      // { officeName -> [ {s, hosts[]} ] }
+
+  function ensureOffice(key){
+    if (!lanPoolsByOffice[key]) lanPoolsByOffice[key] = [];
+    return lanPoolsByOffice[key];
+  }
+
+  // Build address pools from VLSM rows
+  subs.forEach(s => {
+    const prefix = s.prefix;
+
+    // /31 – point‑to‑point, two usable IPs, no gateway
+    if (prefix === 31){
+      const hosts = [s.first, s.last]; // table already stores the two link IPs
+      p2pPools.push({ s, hosts });
+      return;
+    }
+
+    // Decide which office this subnet belongs to
+    let officeKey = s.office || GLOBAL_OFFICE;
+    if (officeKey === 'P2P Link (/31)') officeKey = GLOBAL_OFFICE;
+
+    const officePools = ensureOffice(officeKey);
+
+    // /32 – single‑host block
+    if (prefix === 32){
+      const hosts = [s.first];
+      officePools.push({ s, hosts });
+      return;
+    }
+
+    // Regular LAN: recompute usable host range from network/prefix
+    const netInt   = ipToInt_(s.network);
+    const size     = Math.pow(2, 32 - prefix);
+    const bcInt    = netInt + size - 1;
+    const firstInt = netInt + 1;          // gateway (.1)
+    const lastInt  = bcInt - 1;           // last usable host
+
+    const hosts = [];
+    // Host list excludes the gateway; PCs will start at .2
+    for (let n = firstInt + 1; n <= lastInt; n++){
+      hosts.push(intToIp_(n));
+    }
+
+    officePools.push({ s, hosts });
+  });
+
+  // Take an IP from any /31 pool (independent of office)
+  function takeFromP2P(){
+    for (let i = 0; i < p2pPools.length; i++){
+      const pool = p2pPools[i];
+      if (pool.hosts.length){
+        const ip = pool.hosts.shift();
+        const peer = (ip === pool.s.first) ? pool.s.last : pool.s.first;
+        return { ip, sub: pool.s, peer };
       }
+    }
+    return { ip: null, sub: null, peer: null };
+  }
 
-      // Helpers
-      function ipToInt_(ip){
-        return ip.split('.').reduce((a,o)=> (a<<8) + parseInt(o,10), 0) >>> 0;
+  // Take an IP from LAN pools for a specific office
+  function takeFromLanOffice(officeKey){
+    const pools = lanPoolsByOffice[officeKey] || [];
+    for (let i = 0; i < pools.length; i++){
+      const pool = pools[i];
+      if (pool.hosts.length){
+        const ip = pool.hosts.shift();
+        return { ip, sub: pool.s };
       }
-      function intToIp_(n){
-        return [
-          (n>>>24)&255,
-          (n>>>16)&255,
-          (n>>>8)&255,
-          n&255
-        ].join('.');
+    }
+    return { ip: null, sub: null };
+  }
+
+  function getFirstLanForOffice(officeKey){
+    const pools = lanPoolsByOffice[officeKey] || [];
+    return pools.length ? pools[0] : null;
+  }
+
+  const routerPairs = [];
+
+  // 1) Routers – prefer /31 links, then fall back to LANs in THEIR office
+  topoDevices.filter(d => d.type === 'rtr').forEach(d => {
+    const officeKey = getDeviceOfficeKey(d);
+
+    let t = takeFromP2P();
+    if (!t.ip){
+      t = takeFromLanOffice(officeKey);
+    }
+
+    if (t.ip){
+      d.subnet = t.sub.network;
+      d.prefix = '/' + t.sub.prefix;
+      d.gw     = (t.sub.prefix === 31) ? 'P2P — no gateway' : (t.sub.gateway || '');
+      d.ip     = t.ip;
+      d.p2p    = (t.sub.prefix === 31) ? (t.sub.network + '/31 • peer ' + t.peer) : '—';
+
+      if (t.sub.prefix === 31){
+        routerPairs.push({
+          cidr: t.sub.network + '/31',
+          a: t.ip,
+          b: t.peer
+        });
       }
+    } else {
+      d.subnet = '—';
+      d.prefix = '—';
+      d.gw     = '—';
+      d.ip     = '—';
+      d.p2p    = '—';
+    }
+  });
 
-      const p2pPools = [];
-      const lanPools = [];
+  // 2) Modems – last usable IP of the FIRST LAN of THEIR office
+  const modemDevices  = topoDevices.filter(d => d.type === 'mdm');
+  const switchDevices = topoDevices.filter(d => d.type === 'swi');
 
-      // Build address pools from VLSM rows
-      subs.forEach(s => {
-        const prefix = s.prefix;
+  // Group modems and switches by office
+  const modemsByOffice  = {};
+  const switchesByOffice = {};
 
-        // /31 – point‑to‑point, two usable IPs, no gateway
-        if (prefix === 31){
-          const hosts = [s.first, s.last]; // table already stores the two link IPs
-          p2pPools.push({ s, hosts });
-          return;
-        }
+  modemDevices.forEach(d => {
+    const k = getDeviceOfficeKey(d);
+    if (!modemsByOffice[k]) modemsByOffice[k] = [];
+    modemsByOffice[k].push(d);
+  });
+  switchDevices.forEach(d => {
+    const k = getDeviceOfficeKey(d);
+    if (!switchesByOffice[k]) switchesByOffice[k] = [];
+    switchesByOffice[k].push(d);
+  });
 
-        // /32 – single‑host block
-        if (prefix === 32){
-          const hosts = [s.first];
-          lanPools.push({ s, hosts });
-          return;
-        }
+  // Assign modem and switch per office
+  Object.keys(lanPoolsByOffice).forEach(officeKey => {
+    const firstLan = getFirstLanForOffice(officeKey);
+    const officeModems  = modemsByOffice[officeKey]  || [];
+    const officeSwitches = switchesByOffice[officeKey] || [];
 
-        // Normal LAN: recompute full usable range from Network + Prefix
-        const netInt   = ipToInt_(s.network);           // network address
-        const size     = Math.pow(2, 32 - prefix);      // total addresses in block
-        const bcInt    = netInt + size - 1;             // broadcast
-        const firstInt = netInt + 1;                    // gateway (.1 in a /24)
-        const lastInt  = bcInt - 1;                     // last usable host
-
-        const hosts = [];
-        // Host list excludes the gateway; PCs will start at .2
-        for (let n = firstInt + 1; n <= lastInt; n++){
-          hosts.push(intToIp_(n));
-        }
-
-        lanPools.push({ s, hosts });
-      });
-
-      // Generic "take first free IP" from a pool collection
-      function takeFrom(pools){
-        for (let i = 0; i < pools.length; i++){
-          const pool = pools[i];
-          if (pool.hosts.length){
-            const ip = pool.hosts.shift();
-            let peer = null;
-
-            if (pool.s.prefix === 31){
-              // determine the peer for the /31 link
-              peer = (ip === pool.s.first) ? pool.s.last : pool.s.first;
-            }
-
-            return { ip, sub: pool.s, peer };
-          }
-        }
-        return { ip: null, sub: null, peer: null };
-      }
-
-      const routerPairs = [];
-
-      // 1) Routers – prefer /31 links, then fall back to LANs
-      topoDevices.filter(d => d.type === 'rtr').forEach(d => {
-        let t = takeFrom(p2pPools);
-        if (!t.ip) t = takeFrom(lanPools);
-
-        if (t.ip && t.sub){
-          d.subnet = t.sub.network;
-          d.prefix = '/' + t.sub.prefix;
-          d.gw     = (t.sub.prefix === 31) ? 'P2P — no gateway' : (t.sub.gateway || '');
-          d.ip     = t.ip;
-          d.p2p    = (t.sub.prefix === 31) ? (t.sub.network + '/31 • peer ' + t.peer) : '—';
-
-          if (t.sub.prefix === 31){
-            routerPairs.push({
-              cidr: t.sub.network + '/31',
-              a: t.ip,
-              b: t.peer
-            });
-          }
+    if (firstLan){
+      // Reserve last host for modem(s)
+      officeModems.forEach(d => {
+        if (firstLan.hosts.length){
+          const ip = firstLan.hosts.pop(); // highest remaining IP
+          d.subnet = firstLan.s.network;
+          d.prefix = '/' + firstLan.s.prefix;
+          d.gw     = firstLan.s.gateway || '';
+          d.ip     = ip;
+          d.p2p    = '—';
         } else {
           d.subnet = '—';
           d.prefix = '—';
@@ -1231,83 +1366,16 @@ function intToIp_(n){return [24,16,8,0].map(s=>(n>>>s)&255).join('.')}
         }
       });
 
-      // 2) Modem – last usable IP of FIRST LAN block
-      const modemDevices  = topoDevices.filter(d => d.type === 'mdm');
-      const switchDevices = topoDevices.filter(d => d.type === 'swi');
-
-      if (lanPools.length){
-        const firstLan = lanPools[0];
-
-        // Reserve last host for modem(s)
-        modemDevices.forEach(d => {
-          if (firstLan.hosts.length){
-            const ip = firstLan.hosts.pop(); // highest remaining IP
-            d.subnet = firstLan.s.network;
-            d.prefix = '/' + firstLan.s.prefix;
-            d.gw     = firstLan.s.gateway || '';
-            d.ip     = ip;
-            d.p2p    = '—';
-          } else {
-            d.subnet = '—';
-            d.prefix = '—';
-            d.gw     = '—';
-            d.ip     = '—';
-            d.p2p    = '—';
-          }
-        });
-
-        // 3) Switch – second‑to‑last usable IP of FIRST LAN block
-        switchDevices.forEach(d => {
-          if (firstLan.hosts.length){
-            const ip = firstLan.hosts.pop(); // now penultimate after modem reservation
-            d.subnet = firstLan.s.network;
-            d.prefix = '/' + firstLan.s.prefix;
-            d.gw     = firstLan.s.gateway || '';
-            d.ip     = ip;
-            d.p2p    = '—';
-          } else {
-            d.subnet = '—';
-            d.prefix = '—';
-            d.gw     = '—';
-            d.ip     = '—';
-            d.p2p    = '—';
-          }
-        });
-      } else {
-        // No LANs at all: mark modem/switch as unassigned
-        modemDevices.concat(switchDevices).forEach(d => {
-          d.subnet = '—';
-          d.prefix = '—';
-          d.gw     = '—';
-          d.ip     = '—';
+      // 3) Switch – second‑to‑last usable IP of FIRST LAN block of that office
+      officeSwitches.forEach(d => {
+        if (firstLan.hosts.length){
+          const ip = firstLan.hosts.pop(); // now penultimate after modem reservation
+          d.subnet = firstLan.s.network;
+          d.prefix = '/' + firstLan.s.prefix;
+          d.gw     = firstLan.s.gateway || '';
+          d.ip     = ip;
           d.p2p    = '—';
-        });
-      }
-
-      // 4) PCs – consume remaining LAN addresses round‑robin across all LAN pools
-      const pcDevices = topoDevices.filter(d => d.type === 'pc');
-      let lanIndex = 0;
-
-      pcDevices.forEach(d => {
-        let assigned = false;
-
-        for (let attempts = 0; attempts < lanPools.length; attempts++){
-          const pool = lanPools[lanIndex % lanPools.length];
-          lanIndex++;
-
-          if (pool.hosts.length){
-            const ip = pool.hosts.shift();
-            d.subnet = pool.s.network;
-            d.prefix = '/' + pool.s.prefix;
-            d.gw     = pool.s.gateway || '';
-            d.ip     = ip;
-            d.p2p    = '—';
-            assigned = true;
-            break;
-          }
-        }
-
-        if (!assigned){
+        } else {
           d.subnet = '—';
           d.prefix = '—';
           d.gw     = '—';
@@ -1315,11 +1383,94 @@ function intToIp_(n){return [24,16,8,0].map(s=>(n>>>s)&255).join('.')}
           d.p2p    = '—';
         }
       });
-
-      // Finally, refresh the table and P2P summary
-      renderAssignTable();
-      buildP2PSummary(routerPairs);
+    } else {
+      // No LANs for this office: mark modem/switch as unassigned
+      officeModems.concat(officeSwitches).forEach(d => {
+        d.subnet = '—';
+        d.prefix = '—';
+        d.gw     = '—';
+        d.ip     = '—';
+        d.p2p    = '—';
+      });
     }
+  });
+
+  // Also handle modems/switches in offices with no LAN entry at all
+  Object.keys(modemsByOffice).forEach(officeKey => {
+    if (!lanPoolsByOffice[officeKey]){
+      modemsByOffice[officeKey].forEach(d => {
+        d.subnet = '—';
+        d.prefix = '—';
+        d.gw     = '—';
+        d.ip     = '—';
+        d.p2p    = '—';
+      });
+    }
+  });
+  Object.keys(switchesByOffice).forEach(officeKey => {
+    if (!lanPoolsByOffice[officeKey]){
+      switchesByOffice[officeKey].forEach(d => {
+        d.subnet = '—';
+        d.prefix = '—';
+        d.gw     = '—';
+        d.ip     = '—';
+        d.p2p    = '—';
+      });
+    }
+  });
+
+  // 4) PCs – consume remaining LAN addresses per office (no cross‑office leakage)
+  const pcDevices = topoDevices.filter(d => d.type === 'pc');
+  const lanIndexByOffice = {};
+
+  pcDevices.forEach(d => {
+    const officeKey = getDeviceOfficeKey(d);
+    const pools = lanPoolsByOffice[officeKey] || [];
+
+    if (!pools.length){
+      d.subnet = '—';
+      d.prefix = '—';
+      d.gw     = '—';
+      d.ip     = '—';
+      d.p2p    = '—';
+      return;
+    }
+
+    let idx = lanIndexByOffice[officeKey] || 0;
+    let assigned = false;
+
+    for (let attempts = 0; attempts < pools.length; attempts++){
+      const pool = pools[idx % pools.length];
+      idx++;
+
+      if (pool.hosts.length){
+        const ip = pool.hosts.shift();
+        d.subnet = pool.s.network;
+        d.prefix = '/' + pool.s.prefix;
+        d.gw     = pool.s.gateway || '';
+        d.ip     = ip;
+        d.p2p    = '—';
+        assigned = true;
+        break;
+      }
+    }
+
+    lanIndexByOffice[officeKey] = idx;
+
+    if (!assigned){
+      d.subnet = '—';
+      d.prefix = '—';
+      d.gw     = '—';
+      d.ip     = '—';
+      d.p2p    = '—';
+    }
+  });
+
+  // Finally, refresh the table and P2P summary
+  renderAssignTable();
+  buildP2PSummary(routerPairs);
+}
+
 
 
 
