@@ -1221,7 +1221,7 @@ function assignIPsFromVLSM(){
   subs.forEach(s => {
     const prefix = s.prefix;
 
-    // /31 – point‑to‑point, two usable IPs, no gateway
+    // /31 – point-to-point, two usable IPs, no gateway
     if (prefix === 31){
       const hosts = [s.first, s.last]; // table already stores the two link IPs
       p2pPools.push({ s, hosts });
@@ -1234,7 +1234,7 @@ function assignIPsFromVLSM(){
 
     const officePools = ensureOffice(officeKey);
 
-    // /32 – single‑host block
+    // /32 – single-host block
     if (prefix === 32){
       const hosts = [s.first];
       officePools.push({ s, hosts });
@@ -1262,7 +1262,7 @@ function assignIPsFromVLSM(){
     for (let i = 0; i < p2pPools.length; i++){
       const pool = p2pPools[i];
       if (pool.hosts.length){
-        const ip = pool.hosts.shift();
+        const ip   = pool.hosts.shift();
         const peer = (ip === pool.s.first) ? pool.s.last : pool.s.first;
         return { ip, sub: pool.s, peer };
       }
@@ -1283,6 +1283,7 @@ function assignIPsFromVLSM(){
     return { ip: null, sub: null };
   }
 
+  // First LAN block of an office (for modem/switch/router LAN info)
   function getFirstLanForOffice(officeKey){
     const pools = lanPoolsByOffice[officeKey] || [];
     return pools.length ? pools[0] : null;
@@ -1290,34 +1291,60 @@ function assignIPsFromVLSM(){
 
   const routerPairs = [];
 
-  // 1) Routers – prefer /31 links, then fall back to LANs in THEIR office
+  // 1) Routers – WAN = /31 (P2P), but Subnet/Prefix/Gateway show the office LAN
   topoDevices.filter(d => d.type === 'rtr').forEach(d => {
     const officeKey = getDeviceOfficeKey(d);
 
+    // Try to give them a /31 P2P first
     let t = takeFromP2P();
     if (!t.ip){
+      // If there is no /31 available, fall back to a LAN in their office
       t = takeFromLanOffice(officeKey);
     }
 
-    if (t.ip){
-      d.subnet = t.sub.network;
-      d.prefix = '/' + t.sub.prefix;
-      d.gw     = (t.sub.prefix === 31) ? 'P2P — no gateway' : (t.sub.gateway || '');
-      d.ip     = t.ip;
-      d.p2p    = (t.sub.prefix === 31) ? (t.sub.network + '/31 • peer ' + t.peer) : '—';
-
-      if (t.sub.prefix === 31){
-        routerPairs.push({
-          cidr: t.sub.network + '/31',
-          a: t.ip,
-          b: t.peer
-        });
-      }
-    } else {
+    if (!t.ip || !t.sub){
       d.subnet = '—';
       d.prefix = '—';
       d.gw     = '—';
       d.ip     = '—';
+      d.p2p    = '—';
+      return;
+    }
+
+    const isP2P = (t.sub.prefix === 31);
+
+    // Router IP (usually the WAN side of the /31)
+    d.ip = t.ip;
+
+    if (isP2P){
+      // P2P: store the link in the P2P column
+      const lanInfo = getFirstLanForOffice(officeKey);
+
+      d.p2p = t.sub.network + '/31 • peer ' + t.peer;
+
+      // For the main columns we show the LAN of the office,
+      // so Office 3 and Office 4 do NOT share the same "Subnet" visually.
+      if (lanInfo){
+        d.subnet = lanInfo.s.network;
+        d.prefix = '/' + lanInfo.s.prefix;
+        d.gw     = lanInfo.s.gateway || '';
+      } else {
+        // If the office has no LAN, show the /31 itself
+        d.subnet = t.sub.network;
+        d.prefix = '/' + t.sub.prefix;
+        d.gw     = 'P2P — no gateway';
+      }
+
+      routerPairs.push({
+        cidr: t.sub.network + '/31',
+        a: t.ip,
+        b: t.peer
+      });
+    } else {
+      // Router without a /31 (rare): behaves like a LAN host
+      d.subnet = t.sub.network;
+      d.prefix = '/' + t.sub.prefix;
+      d.gw     = t.sub.gateway || '';
       d.p2p    = '—';
     }
   });
@@ -1327,7 +1354,7 @@ function assignIPsFromVLSM(){
   const switchDevices = topoDevices.filter(d => d.type === 'swi');
 
   // Group modems and switches by office
-  const modemsByOffice  = {};
+  const modemsByOffice   = {};
   const switchesByOffice = {};
 
   modemDevices.forEach(d => {
@@ -1341,17 +1368,17 @@ function assignIPsFromVLSM(){
     switchesByOffice[k].push(d);
   });
 
-  // Assign modem and switch per office
+  // For each office, take the FIRST LAN block as the "uplink" LAN
   Object.keys(lanPoolsByOffice).forEach(officeKey => {
     const firstLan = getFirstLanForOffice(officeKey);
-    const officeModems  = modemsByOffice[officeKey]  || [];
+    const officeModems   = modemsByOffice[officeKey]   || [];
     const officeSwitches = switchesByOffice[officeKey] || [];
 
     if (firstLan){
-      // Reserve last host for modem(s)
+      // 2a) First, assign modem(s) from the end of that LAN host list
       officeModems.forEach(d => {
         if (firstLan.hosts.length){
-          const ip = firstLan.hosts.pop(); // highest remaining IP
+          const ip = firstLan.hosts.pop();
           d.subnet = firstLan.s.network;
           d.prefix = '/' + firstLan.s.prefix;
           d.gw     = firstLan.s.gateway || '';
@@ -1366,10 +1393,10 @@ function assignIPsFromVLSM(){
         }
       });
 
-      // 3) Switch – second‑to‑last usable IP of FIRST LAN block of that office
+      // 2b) Then, assign switch(es) right before the modem address(es)
       officeSwitches.forEach(d => {
         if (firstLan.hosts.length){
-          const ip = firstLan.hosts.pop(); // now penultimate after modem reservation
+          const ip = firstLan.hosts.pop();
           d.subnet = firstLan.s.network;
           d.prefix = '/' + firstLan.s.prefix;
           d.gw     = firstLan.s.gateway || '';
@@ -1384,7 +1411,7 @@ function assignIPsFromVLSM(){
         }
       });
     } else {
-      // No LANs for this office: mark modem/switch as unassigned
+      // Office has no LAN: leave modem/switch unassigned
       officeModems.concat(officeSwitches).forEach(d => {
         d.subnet = '—';
         d.prefix = '—';
@@ -1395,7 +1422,7 @@ function assignIPsFromVLSM(){
     }
   });
 
-  // Also handle modems/switches in offices with no LAN entry at all
+  // Also handle modems/switches in offices that had no LAN entry at all
   Object.keys(modemsByOffice).forEach(officeKey => {
     if (!lanPoolsByOffice[officeKey]){
       modemsByOffice[officeKey].forEach(d => {
@@ -1419,7 +1446,7 @@ function assignIPsFromVLSM(){
     }
   });
 
-  // 4) PCs – consume remaining LAN addresses per office (no cross‑office leakage)
+  // 3) PCs – consume remaining LAN hosts per office (no cross-office leakage)
   const pcDevices = topoDevices.filter(d => d.type === 'pc');
   const lanIndexByOffice = {};
 
@@ -1470,6 +1497,7 @@ function assignIPsFromVLSM(){
   renderAssignTable();
   buildP2PSummary(routerPairs);
 }
+
 
 
 
