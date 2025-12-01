@@ -967,8 +967,6 @@ function runVLSM(){
   if(!validIPv4(ip)){ alert('Enter a valid IPv4 first.'); return; }
 
   const ipInt=ipToInt(ip), cls=ipClass(ip);
-  const {baseCidr,baseNet,baseBc}=computeBase(ipInt,cls,'auto'); // per-office base: global base stays auto/classful
-  document.getElementById('comcastNote').style.display=(baseCidr===24 && baseNet===ipToInt('10.0.0.0'))?'block':'none';
 
   // Build needs from Topology by office
   const officeCounts = countDevicesByOffice(); // {Office:count}
@@ -993,6 +991,35 @@ function runVLSM(){
     return {name, need: n, forceCidr};
   });
 
+  // === Determine base block (supernet) based on forced prefixes + /31 links ===
+  const p2pInput = document.getElementById('p2pLinks');
+  const p2pCount = Math.max(0, Number(p2pInput ? p2pInput.value : 0) | 0);
+
+  const forcedList = needsArr
+    .map(o => o.forceCidr)
+    .filter(c => Number.isFinite(c));
+
+  let baseSel = 'auto'; // default: classful
+  if (forcedList.length){
+    const minForced = Math.min.apply(null, forcedList); // smallest forced prefix (e.g., /24)
+    if (p2pCount > 0 && minForced > 2){
+      // If there are /31 router links AND at least one forced prefix,
+      // use a base two bits larger so the /31 links and all LANs have room,
+      // even when one office forces a very large prefix (e.g., /16).
+      baseSel = String(minForced - 2);
+    } else {
+      baseSel = String(minForced);
+    }
+  }
+
+  const baseInfo = computeBase(ipInt, cls, baseSel);
+  const baseCidr = baseInfo.baseCidr;
+  const baseNet  = baseInfo.baseNet;
+  const baseBc   = baseInfo.baseBc;
+
+  document.getElementById('comcastNote').style.display =
+    (baseCidr===24 && baseNet===ipToInt('10.0.0.0')) ? 'block' : 'none';
+
   // Sort by need desc but keep office order when needs are equal
   needsArr.sort((a,b)=>{
     if (b.need !== a.need) return b.need - a.need;
@@ -1001,8 +1028,6 @@ function runVLSM(){
 
   
   // === Reserve Router-to-Router /31 links first (if any) ===
-  const p2pInput = document.getElementById('p2pLinks');
-  const p2pCount = Math.max(0, Number(p2pInput ? p2pInput.value : 0) | 0);
   let lanStart = baseNet;
   if(p2pCount>0){
     let p2pCursor = baseNet;
