@@ -1031,10 +1031,16 @@ function runVLSM(){
   document.getElementById('comcastNote').style.display =
     (baseCidr===24 && baseNet===ipToInt('10.0.0.0')) ? 'block' : 'none';
 
-  // Sort by need desc but keep office order when needs are equal
+  // Sort by required block size (largest subnet first) to avoid internal gaps
+  // Effective CIDR per office = forced prefix (/1–/30) or nextPow2Hosts(need) when auto.
   needsArr.sort((a,b)=>{
-    if (b.need !== a.need) return b.need - a.need;
-    return a.name.localeCompare(b.name);
+    const cidrA = (a.forceCidr && a.forceCidr >= 1 && a.forceCidr <= 30) ? a.forceCidr : nextPow2Hosts(a.need);
+    const cidrB = (b.forceCidr && b.forceCidr >= 1 && b.forceCidr <= 30) ? b.forceCidr : nextPow2Hosts(b.need);
+    const sizeA = 2 ** (32 - cidrA);
+    const sizeB = 2 ** (32 - cidrB);
+    if (sizeB !== sizeA) return sizeB - sizeA; // bigger block first
+    if (b.need !== a.need) return b.need - a.need; // tie‑break by need
+    return a.name.localeCompare(b.name);         // then alphabetically
   });
 
   
