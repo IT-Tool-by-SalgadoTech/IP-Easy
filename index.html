@@ -1000,16 +1000,27 @@ function runVLSM(){
     .filter(c => Number.isFinite(c));
 
   let baseSel = 'auto'; // default: classful
+
   if (forcedList.length){
-    const minForced = Math.min.apply(null, forcedList); // smallest forced prefix (e.g., /24)
-    if (p2pCount > 0 && minForced > 2){
-      // If there are /31 router links AND at least one forced prefix,
-      // use a base two bits larger so the /31 links and all LANs have room,
-      // even when one office forces a very large prefix (e.g., /16).
-      baseSel = String(minForced - 2);
-    } else {
-      baseSel = String(minForced);
+    // Start from the smallest (largest block) forced prefix, for example /23
+    let baseCidr = Math.min.apply(null, forcedList);
+
+    // Total addresses required by ALL offices (forced + auto) plus the /31 P2P links (2 hosts each)
+    const totalHosts =
+      needsArr.reduce((sum, o) => {
+        const cidrForOffice =
+          (o.forceCidr && o.forceCidr >= 1 && o.forceCidr <= 30)
+            ? o.forceCidr
+            : nextPow2Hosts(o.need);
+        return sum + Math.pow(2, 32 - cidrForOffice);
+      }, 0) + (p2pCount * 2);
+
+    // Grow the base block (make the prefix shorter) until everything fits
+    while (baseCidr > 1 && Math.pow(2, 32 - baseCidr) < totalHosts){
+      baseCidr--; // each step doubles the available address space
     }
+
+    baseSel = String(baseCidr);
   }
 
   const baseInfo = computeBase(ipInt, cls, baseSel);
