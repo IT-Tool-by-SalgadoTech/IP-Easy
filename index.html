@@ -368,6 +368,15 @@ select, input[type='number'] { color: #ffffff !important; }
       <button type="button" id="p2pHelpBtn" class="mini" style="width:auto">P2P-Router_Help</button>
     </span>
   </label>
+  <div id="p2pPairsWrap" class="out" style="margin-top:6px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px">
+      <span class="muted" style="font-size:13px">Router-to-Router office pairs (optional)</span>
+      <button type="button" id="addP2PPairBtn" class="mini" style="width:auto">+ Add router pair</button>
+    </div>
+    <div id="p2pPairsList" style="display:flex;flex-direction:column;gap:6px"></div>
+    <small class="muted">Each pair consumes one /31 link. Leave empty to auto-pair routers by order.</small>
+  </div>
+
             <label class="row" for="addGw">
               <input id="addGw" type="checkbox" checked />
               <span>Add 1 for gateway (recommended)</span>
@@ -907,7 +916,97 @@ setTimeout(()=>{
   const addBtn=document.getElementById('addLan'); const clr=document.getElementById('clearLan');
   if(addBtn) addBtn.addEventListener('click', ()=> addLan('', 8));
   if(clr) clr.addEventListener('click', clearLan);
-},0);
+},0)
+  const pairBtn  = document.getElementById('addP2PPairBtn');
+  const pairList = document.getElementById('p2pPairsList');
+  const p2pInput = document.getElementById('p2pLinks');
+
+  if (pairBtn && pairList){
+    function getOfficeNamesForPairs(){
+      const cards = document.querySelectorAll('#lanBlocks .lanCard');
+      const names = [];
+      cards.forEach((card, idx) => {
+        const input = card.querySelector('.lanName');
+        const name  = (input && input.value.trim()) || (`Office ${idx+1}`);
+        names.push(name);
+      });
+      return names;
+    }
+
+    function refreshPairRowOptions(row){
+      const names = getOfficeNamesForPairs();
+      const opts  = ['Unassigned'].concat(names);
+      const sels  = row
+        ? row.querySelectorAll('.p2pOfficeSel')
+        : pairList.querySelectorAll('.p2pOfficeSel');
+
+      sels.forEach(sel => {
+        const current = sel.value;
+        sel.innerHTML = opts.map(n => `<option value="${n}">${n}</option>`).join('');
+        sel.value = opts.indexOf(current) !== -1 ? current : 'Unassigned';
+      });
+    }
+
+    function enforceMaxPairs(){
+      const maxPairs = Math.max(0, parseInt(p2pInput && p2pInput.value, 10) || 0);
+      const rows = Array.from(pairList.querySelectorAll('.p2pPairRow'));
+
+      if (!maxPairs){
+        rows.forEach(r => r.remove());
+        return;
+      }
+      if (rows.length > maxPairs){
+        for (let i = rows.length - 1; i >= maxPairs; i--){
+          rows[i].remove();
+        }
+      }
+    }
+
+    function addPairRow(){
+      const maxPairs = Math.max(0, parseInt(p2pInput && p2pInput.value, 10) || 0);
+      const existing = pairList.querySelectorAll('.p2pPairRow').length;
+      if (maxPairs && existing >= maxPairs){
+        alert('You already have the maximum number of router-to-router pairs for the current /31 count.');
+        return;
+      }
+
+      const row = document.createElement('div');
+      row.className = 'p2pPairRow';
+      row.style.display = 'flex';
+      row.style.gap = '6px';
+      row.style.alignItems = 'center';
+      row.innerHTML =
+        '<select class="p2pOfficeSel p2pOfficeA"></select>' +
+        '<span style="font-size:13px;color:var(--muted)">↔</span>' +
+        '<select class="p2pOfficeSel p2pOfficeB"></select>' +
+        '<button type="button" class="mini p2pRemoveBtn" style="width:auto">&times;</button>';
+
+      pairList.appendChild(row);
+      refreshPairRowOptions(row);
+
+      const removeBtn = row.querySelector('.p2pRemoveBtn');
+      if (removeBtn){
+        removeBtn.addEventListener('click', () => row.remove());
+      }
+    }
+
+    pairBtn.addEventListener('click', ev => {
+      ev.preventDefault();
+      addPairRow();
+    });
+
+    if (p2pInput){
+      p2pInput.addEventListener('change', enforceMaxPairs);
+      p2pInput.addEventListener('input', enforceMaxPairs);
+    }
+
+    setInterval(() => {
+      const rows = pairList.querySelectorAll('.p2pPairRow');
+      rows.forEach(refreshPairRowOptions);
+      enforceMaxPairs();
+    }, 2000);
+  }
+;
 function getOfficeBaseOverrides(){
   const wrap=document.getElementById('lanBlocks'); if(!wrap) return {};
   const map = {};
@@ -1331,67 +1430,131 @@ function assignIPsFromVLSM(){
     return pools.length ? pools[0] : null;
   }
 
+  
   const routerPairs = [];
 
-  // 1) Routers – WAN = /31 (P2P), but Subnet/Prefix/Gateway show the office LAN
-  topoDevices.filter(d => d.type === 'rtr').forEach(d => {
+  // 1) Routers – prefer explicit office pairs for /31 links, then auto‑pair, then fall back to LAN
+  const routerDevices = topoDevices.filter(d => d.type === 'rtr');
+
+  // Group routers by office
+  const routersByOffice = {};
+  routerDevices.forEach(d => {
+    const key = getDeviceOfficeKey(d);
+    if (!routersByOffice[key]) routersByOffice[key] = [];
+    routersByOffice[key].push(d);
+  });
+
+  // Read configured office pairs from the UI (optional)
+  function getConfiguredOfficePairs(){
+    const list = document.getElementById('p2pPairsList');
+    if (!list) return [];
+    const rows = Array.from(list.querySelectorAll('.p2pPairRow'));
+    const pairs = [];
+    rows.forEach(row => {
+      const aSel = row.querySelector('.p2pOfficeA');
+      const bSel = row.querySelector('.p2pOfficeB');
+      if (!aSel || !bSel) return;
+      const a = aSel.value.trim();
+      const b = bSel.value.trim();
+      if (!a || !b || a === 'Unassigned' || b === 'Unassigned' || a === b) return;
+      pairs.push({ a, b });
+    });
+    return pairs;
+  }
+
+  function assignRouterFromLan(d){
     const officeKey = getDeviceOfficeKey(d);
-
-    // Try to give them a /31 P2P first
-    let t = takeFromP2P();
-    if (!t.ip){
-      // If there is no /31 available, fall back to a LAN in their office
-      t = takeFromLanOffice(officeKey);
-    }
-
-    if (!t.ip || !t.sub){
+    const t = takeFromLanOffice(officeKey);
+    if (t && t.ip && t.sub){
+      d.subnet = t.sub.network;
+      d.prefix = '/' + t.sub.prefix;
+      d.gw     = t.sub.gateway || '';
+      d.ip     = t.ip;
+      d.p2p    = '—';
+    } else {
       d.subnet = '—';
       d.prefix = '—';
       d.gw     = '—';
       d.ip     = '—';
       d.p2p    = '—';
-      return;
     }
+  }
 
-    const isP2P = (t.sub.prefix === 31);
+  const configuredPairs = getConfiguredOfficePairs();
+  const usedRouters = new Set();
+  let p2pIndex = 0;
 
-    // Router IP (usually the WAN side of the /31)
-    d.ip = t.ip;
+  // 1a) Apply explicit office pairs first
+  configuredPairs.forEach(pair => {
+    if (p2pIndex >= p2pPools.length) return;
+    const pool = p2pPools[p2pIndex++];
+    const listA = routersByOffice[pair.a] || [];
+    const listB = routersByOffice[pair.b] || [];
+    const aDev = listA.find(r => !usedRouters.has(r));
+    const bDev = listB.find(r => !usedRouters.has(r));
+    if (!aDev || !bDev) return;
 
-    if (isP2P){
-      // P2P: store the link in the P2P column
-      const lanInfo = getFirstLanForOffice(officeKey);
+    usedRouters.add(aDev);
+    usedRouters.add(bDev);
 
-      d.p2p = t.sub.network + '/31 • peer ' + t.peer;
+    const ipA = pool.hosts[0];
+    const ipB = pool.hosts[1];
 
-      // For the main columns we show the LAN of the office,
-      // so Office 3 and Office 4 do NOT share the same "Subnet" visually.
-      if (lanInfo){
-        d.subnet = lanInfo.s.network;
-        d.prefix = '/' + lanInfo.s.prefix;
-        d.gw     = lanInfo.s.gateway || '';
-      } else {
-        // If the office has no LAN, show the /31 itself
-        d.subnet = t.sub.network;
-        d.prefix = '/' + t.sub.prefix;
-        d.gw     = 'P2P — no gateway';
-      }
+    // Assign WAN /31 addresses
+    aDev.subnet = pool.s.network;
+    aDev.prefix = '/' + pool.s.prefix;
+    aDev.gw     = pool.s.gateway || '';
+    aDev.ip     = ipA;
+    aDev.p2p    = pool.s.network + '/31 • peer ' + ipB;
 
-      routerPairs.push({
-        cidr: t.sub.network + '/31',
-        a: t.ip,
-        b: t.peer
-      });
-    } else {
-      // Router without a /31 (rare): behaves like a LAN host
-      d.subnet = t.sub.network;
-      d.prefix = '/' + t.sub.prefix;
-      d.gw     = t.sub.gateway || '';
-      d.p2p    = '—';
-    }
+    bDev.subnet = pool.s.network;
+    bDev.prefix = '/' + pool.s.prefix;
+    bDev.gw     = pool.s.gateway || '';
+    bDev.ip     = ipB;
+    bDev.p2p    = pool.s.network + '/31 • peer ' + ipA;
+
+    routerPairs.push({
+      cidr: pool.s.network + '/31',
+      a: ipA,
+      b: ipB
+    });
   });
 
-  // 2) Modems – last usable IP of the FIRST LAN of THEIR office
+  // 1b) Auto‑pair remaining routers (odd/even order) with remaining /31 pools
+  const autoQueue = routerDevices.filter(d => !usedRouters.has(d));
+
+  while (autoQueue.length >= 2 && p2pIndex < p2pPools.length){
+    const d1 = autoQueue.shift();
+    const d2 = autoQueue.shift();
+    const pool = p2pPools[p2pIndex++];
+
+    const ipA = pool.hosts[0];
+    const ipB = pool.hosts[1];
+
+    d1.subnet = pool.s.network;
+    d1.prefix = '/' + pool.s.prefix;
+    d1.gw     = pool.s.gateway || '';
+    d1.ip     = ipA;
+    d1.p2p    = pool.s.network + '/31 • peer ' + ipB;
+
+    d2.subnet = pool.s.network;
+    d2.prefix = '/' + pool.s.prefix;
+    d2.gw     = pool.s.gateway || '';
+    d2.ip     = ipB;
+    d2.p2p    = pool.s.network + '/31 • peer ' + ipA;
+
+    routerPairs.push({
+      cidr: pool.s.network + '/31',
+      a: ipA,
+      b: ipB
+    });
+  }
+
+  // 1c) Any leftover routers get LAN addresses (no /31 available)
+  autoQueue.forEach(d => {
+    assignRouterFromLan(d);
+  });
+// 2) Modems – last usable IP of the FIRST LAN of THEIR office
   const modemDevices  = topoDevices.filter(d => d.type === 'mdm');
   const switchDevices = topoDevices.filter(d => d.type === 'swi');
 
@@ -2128,7 +2291,11 @@ document.getElementById('clearTopo').addEventListener('click', clearTopology);
     }
   });
 })();
-</script>
+
+<script>
+// Router-to-Router office pairs UI handled in main script.
+
+
 
 </body>
 </html>
