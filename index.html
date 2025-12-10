@@ -1098,11 +1098,12 @@ function runVLSM(){
     .map(o => o.forceCidr)
     .filter(c => Number.isFinite(c));
 
+
   let baseSel = 'auto'; // default: classful
 
   if (forcedList.length){
     // Start from the smallest (largest block) forced prefix, for example /23
-    let baseCidr = Math.min.apply(null, forcedList);
+    let baseCidrCandidate = Math.min.apply(null, forcedList);
 
     // Total addresses required by ALL offices (forced + auto) plus the /31 P2P links (2 hosts each)
     const totalHosts =
@@ -1114,18 +1115,86 @@ function runVLSM(){
         return sum + Math.pow(2, 32 - cidrForOffice);
       }, 0) + (p2pCount * 2);
 
-    // Grow the base block (make the prefix shorter) until everything fits
-    while (baseCidr > 1 && Math.pow(2, 32 - baseCidr) < totalHosts){
-      baseCidr--; // each step doubles the available address space
+    // Grow the base block (make the prefix shorter) until everything fits by host count
+    while (baseCidrCandidate > 1 && Math.pow(2, 32 - baseCidrCandidate) < totalHosts){
+      baseCidrCandidate--; // each step doubles the available address space
     }
 
-    baseSel = String(baseCidr);
+    baseSel = String(baseCidrCandidate);
   }
 
-  const baseInfo = computeBase(ipInt, cls, baseSel);
-  const baseCidr = baseInfo.baseCidr;
-  const baseNet  = baseInfo.baseNet;
-  const baseBc   = baseInfo.baseBc;
+  // Initial base block around the given IP / class
+  let baseInfo = computeBase(ipInt, cls, baseSel);
+  let baseCidr = baseInfo.baseCidr;
+  let baseNet  = baseInfo.baseNet;
+  let baseBc   = baseInfo.baseBc;
+
+  // Helper to test whether all /31 links and offices can be packed inside
+  // a candidate base prefix when alignment rules are applied.
+  function canPackInBase(testCidr){
+    const info = computeBase(ipInt, cls, String(testCidr));
+    const testNet = info.baseNet;
+    const testBc  = info.baseBc;
+
+    // Copy of needsArr sorted exactly as the real allocator will do.
+    const sorted = needsArr.slice().sort((a,b)=>{
+      const cidrA = (a.forceCidr && a.forceCidr >= 1 && a.forceCidr <= 30) ? a.forceCidr : nextPow2Hosts(a.need);
+      const cidrB = (b.forceCidr && b.forceCidr >= 1 && b.forceCidr <= 30) ? b.forceCidr : nextPow2Hosts(b.need);
+      const sizeA = 2 ** (32 - cidrA);
+      const sizeB = 2 ** (32 - cidrB);
+      if (sizeB !== sizeA) return sizeB - sizeA; // bigger block first
+      if (b.need !== a.need) return b.need - a.need; // tie‑break by need
+      return a.name.localeCompare(b.name);         // then alphabetically
+    });
+
+    // 1) Reserve Router‑to‑Router /31 links from the start of the base.
+    let p2pCursor = testNet;
+    for(let i=0;i<p2pCount;i++){
+      const cidr=31, size=2**(32-cidr);
+      p2pCursor = alignUp(p2pCursor, cidr);
+      const subnetNet=p2pCursor, subnetBc=subnetNet+size-1;
+      if(subnetBc> testBc) return false;
+      p2pCursor = subnetBc + 1;
+    }
+
+    // 2) Pack offices one by one, honoring forced prefixes and alignment.
+    let cursor = p2pCursor;
+    const end  = testBc;
+    for(const item of sorted){
+      const need=item.need;
+      let cidr;
+
+      if (item.forceCidr && item.forceCidr >= 1 && item.forceCidr <= 30){
+        cidr = item.forceCidr;
+      } else if (sorted.length === 1 && (p2pCount === 0)) {
+        // Single LAN with no P2P uses the base block prefix.
+        cidr = Number(testCidr);
+      } else {
+        cidr = nextPow2Hosts(need);
+      }
+
+      const size = 2 ** (32 - cidr);
+      cursor = alignUp(cursor, cidr);
+      const subnetNet=cursor, subnetBc=subnetNet+size-1;
+      if(subnetBc> end) return false;
+      cursor = subnetBc + 1;
+    }
+    return true;
+  }
+
+  // If the initial base block is still too small once alignment and P2P links
+  // are considered, progressively grow it (shorten the prefix) until we can
+  // pack everything without errors.
+  let testCidr = baseCidr;
+  while(testCidr > 1 && !canPackInBase(testCidr)){
+    testCidr--;
+  }
+  if(testCidr !== baseCidr){
+    baseInfo = computeBase(ipInt, cls, String(testCidr));
+    baseCidr = baseInfo.baseCidr;
+    baseNet  = baseInfo.baseNet;
+    baseBc   = baseInfo.baseBc;
+  }
 
   document.getElementById('comcastNote').style.display =
     (baseCidr===24 && baseNet===ipToInt('10.0.0.0')) ? 'block' : 'none';
@@ -1142,8 +1211,8 @@ function runVLSM(){
     return a.name.localeCompare(b.name);         // then alphabetically
   });
 
-  
-  // === Reserve Router-to-Router /31 links first (if any) ===
+
+// === Reserve Router-to-Router /31 links first (if any) ===
   let lanStart = baseNet;
   if(p2pCount>0){
     let p2pCursor = baseNet;
