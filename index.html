@@ -124,6 +124,14 @@ select, input[type='number'] { color: #ffffff !important; }
 .lanDevices{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .lanDevices .mini{width:auto;display:inline-flex;align-items:center;justify-content:center;padding:6px 12px}
 
+/* Custom device (Others) input + OK square button */
+.lanDevices .otherWrap{display:flex;flex-direction:column;gap:4px;padding:6px 10px;border:1px solid #2a4270;border-radius:12px;background:#0b1220}
+.lanDevices .otherLbl{font-size:11px;color:var(--muted);line-height:1}
+.lanDevices .otherRow{display:flex;gap:6px;align-items:center}
+.lanDevices .otherName{width:120px;max-width:160px;padding:6px 8px;border-radius:10px;border:1px solid #2a4270;background:#0f1a2d;color:var(--fg);font-size:13px}
+.lanDevices .otherOk{width:28px;min-width:28px;height:28px;padding:0;border-radius:8px}
+.node.oth .dot{background:#c77dff} /* Others */
+
 
 /* Stack the VLSM inputs under LAN blocks without moving DOM */
 .twoCol{grid-template-columns:1fr !important}
@@ -815,7 +823,15 @@ function makeLanCard(idx, name='', pcs=1){
                      <button class="mini addRouter" title="Add Router">+ Router</button>
                      <button class="mini addSwitch" title="Add Switch">+ Switch</button>
                      <button class="mini addPC"     title="Add PC">+ PC</button>
-                   </div>
+                   
+                     <div class="otherWrap">
+                       <div class="otherLbl">Others</div>
+                       <div class="otherRow">
+                         <input class="otherName" placeholder="laptop" />
+                         <button class="mini otherOk" title="Add custom device">OK</button>
+                       </div>
+                     </div>
+</div>
                    <div class="lanBaseRow" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                      <small class="muted" style="margin:0">Base block / prefix:</small>
                      <select class="lanBaseSel" style="min-width:140px;max-width:200px">
@@ -862,6 +878,46 @@ function makeLanCard(idx, name='', pcs=1){
   wire('.addRouter', 'rtr');
   wire('.addSwitch', 'swi');
   wire('.addPC',     'pc');
+
+  // Custom device: Others (adds a PC-like node but with user-defined name)
+  const otherOk = div.querySelector('.otherOk');
+  const otherIn = div.querySelector('.otherName');
+  if(otherOk && otherIn){
+    const addOther = async ()=>{
+      const custom = (otherIn.value||'').trim();
+      if(!custom){ otherIn.focus(); return; }
+
+      const prevLen = (typeof topoDevices!=='undefined' && Array.isArray(topoDevices)) ? topoDevices.length : null;
+
+      // Add as a PC node (keeps existing VLSM/IP logic intact)
+      try{
+        await addOfficeDevice(div, idx, 'pc');
+      }catch(e){ /* continue */ }
+
+      // Rename + mark for display (Device + Type columns)
+      try{
+        if(prevLen !== null && Array.isArray(topoDevices) && topoDevices.length > prevLen){
+          const d = topoDevices[prevLen];
+          d.name = custom;
+          d.userType = custom; // Type column shows this (no numbering)
+
+          const el = document.getElementById(d.id);
+          if(el){
+            el.classList.add('oth');
+            const tag = el.querySelector('.tag');
+            if(tag) tag.textContent = custom;
+          }
+
+          if(typeof renderAssignTable === 'function') renderAssignTable();
+          if(typeof assignIPsFromVLSM === 'function') assignIPsFromVLSM();
+        }
+      }catch(e){ /* no-op */ }
+
+      otherIn.value = '';
+    };
+    otherOk.addEventListener('click', addOther);
+    otherIn.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); addOther(); }});
+  }
   return div;
 
 }
@@ -1351,7 +1407,8 @@ function renderAssignTable(){
 
   topoDevices.forEach((d,i)=>{
     const tr=document.createElement('tr');
-    const typeTxt = (d.type==='mdm')?'Modem':(d.type==='rtr')?'Router':(d.type==='swi')?'Switch':'PC';
+    let typeTxt = (d.type==='mdm')?'Modem':(d.type==='rtr')?'Router':(d.type==='swi')?'Switch':'PC';
+    if(d.userType){ typeTxt = d.userType; }
     const nodeEl = document.getElementById(d.id);
     const offSel = nodeEl ? nodeEl.querySelector('.officeSel') : null;
     const off = offSel ? (offSel.value || 'Unassigned') : 'Unassigned';
