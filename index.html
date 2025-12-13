@@ -825,10 +825,10 @@ function makeLanCard(idx, name='', pcs=1){
                      <button class="mini addPC"     title="Add PC">+ PC</button>
                    
                      <div class="otherWrap">
-                       <div class="otherLbl">Others</div>
+                       <div class="otherLbl"></div>
                        <div class="otherRow">
-                         <input class="otherName" placeholder="laptop" />
-                         <button class="mini otherOk" title="Add custom device">OK</button>
+                         <input class="otherName" placeholder="Others" />
+                         <button class="mini otherOk" title="Add custom device">+</button>
                        </div>
                      </div>
 </div>
@@ -1093,6 +1093,24 @@ function countDevicesByOffice(){
   });
   return counts; // {OfficeX: count}
 }
+
+function countDevicesByOfficeAndType(){
+  const counts={};
+  const names = collectLANNames();
+  names.forEach(n=>counts[n]={mdm:0,swi:0,rtr:0,pc:0,oth:0,any:0});
+  document.querySelectorAll('#topoCanvas .node').forEach(node=>{
+    const sel = node.querySelector('.officeSel');
+    const off = (sel && sel.value) ? sel.value : 'Unassigned';
+    if(!counts.hasOwnProperty(off)) return;
+    const cls = Array.from(node.classList||[]);
+    const type = cls.find(c=>c==='mdm'||c==='swi'||c==='rtr'||c==='pc'||c==='oth') || null;
+    if(type && counts[off].hasOwnProperty(type)) counts[off][type] = (counts[off][type]||0) + 1;
+    counts[off].any = (counts[off].any||0) + 1;
+  });
+  return counts; // {Office:{mdm,swi,rtr,pc,oth,any}}
+}
+
+
 function collectNeedsFromLAN(){
   const wrap=document.getElementById('lanBlocks'); if(!wrap) return [];
   return [...wrap.querySelectorAll('.lanPcs')].map(e=>Number(e.value)).filter(n=>Number.isFinite(n) && n>0);
@@ -1110,11 +1128,15 @@ function alignDown(n,c){ const mask=c===0?0:(~0<<(32-c))>>>0; return n & mask; }
 function alignUp(n,c){ const size=2**(32-c); return (n + size - 1) & ~(size - 1); }
 function classfulBaseCIDR(cls){ if(cls==='A')return 8; if(cls==='B')return 16; if(cls==='C')return 24; return 24; }
 function computeBase(ipInt,cls,baseSel){ let baseCidr=(baseSel==='auto')?classfulBaseCIDR(cls):Number(baseSel); const baseNet=alignDown(ipInt,baseCidr); const baseBc=baseNet | (~((~0<<(32-baseCidr))>>>0))>>>0; return {baseCidr,baseNet,baseBc}; }
-function toDhcpPool(firstInt,lastInt){ const start=firstInt+1,end=lastInt-1; return (end>=start)? (intToIp(start)+' - '+intToIp(end)):'—'; }
+function toDhcpPool(firstInt,lastInt,tailReserved,reserveGw){
+  const rg = (reserveGw===undefined)? true : !!reserveGw;
+  const tr = Math.max(0, Number(tailReserved||0) | 0);
+  const start = firstInt + (rg ? 1 : 0);
+  const end   = lastInt  - tr;
+  return (end>=start)? (intToIp(start)+' - '+intToIp(end)) : '—';
+}
 function updateSupernetHints(ipInt){
   const c23=23,c22=22, n23=alignDown(ipInt,c23), b23=n23 | (~((~0<<(32-c23))>>>0))>>>0, n22=alignDown(ipInt,c22), b22=n22 | (~((~0<<(32-c22))>>>0))>>>0;
-  document.getElementById('super23').textContent='Supernet /23 around your IP: '+intToIp(n23)+' - '+intToIp(b23)+' (contains two /24s)';
-  document.getElementById('super22').textContent='Supernet /22 around your IP: '+intToIp(n22)+' - '+intToIp(b22)+' (contains four /24s)';
 }
 function runVLSM(){
   const ip=document.getElementById('ip').value.trim();
@@ -1125,6 +1147,11 @@ function runVLSM(){
 
   // Build needs from Topology by office
   const officeCounts = countDevicesByOffice(); // {Office:count}
+  const officeTypeCounts = countDevicesByOfficeAndType();
+  const tailReservedForOffice = (name)=>{
+    const o = (officeTypeCounts && officeTypeCounts[name]) ? officeTypeCounts[name] : {};
+    return (o.mdm||0) + (o.swi||0);
+  };
   // If no offices defined, bail
   const offices = Object.keys(officeCounts);
   if(offices.length===0){ alert('Add at least one Office/LAN.'); return; }
@@ -1324,16 +1351,16 @@ function runVLSM(){
       // Usable host range (raw, without reservations)
       firstInt = subnetNet + 1;
       lastInt  = subnetBc  - 1;
-      // Display policy: if gateway is reserved, move "First" one up; always reserve last usable for Switch
-      const swReserved = true;
+      // Display policy: if gateway is reserved, move "First" one up; reserve tail IPs only if those devices exist
+      const tailReserved = tailReservedForOffice(item.name);
       let dispFirst = firstInt + (addGw ? 1 : 0);
-      let dispLast  = lastInt  - (swReserved ? 1 : 0);
-      gw    = intToIp(firstInt);
+      let dispLast  = lastInt  - tailReserved;
+gw    = intToIp(firstInt);
       first = intToIp(dispFirst);
       last  = intToIp(dispLast);
     }
-    // DHCP pool remains firstInt+1 .. lastInt-1 (excludes gateway and switch automatically)
-    const dhcp=(cidr<=30)? toDhcpPool(firstInt,lastInt) : '—';
+    // DHCP pool should exclude the gateway and any tail-reserved device addresses (switch/modem)
+    const dhcp=(cidr<=30)? toDhcpPool(firstInt,lastInt,tailReservedForOffice(item.name),addGw) : '—';
 
     const tr=document.createElement('tr');
     tr.innerHTML=`<td>${item.name}</td><td>${need}</td><td>/${cidr}</td><td>${mask}</td><td>${wc}</td>
@@ -1558,6 +1585,7 @@ function assignIPsFromVLSM(){
 
   
   const routerPairs = [];
+  const routerGwTaken = {};
 
   // 1) Routers – prefer explicit office pairs for /31 links, then auto‑pair, then fall back to LAN
   const routerDevices = topoDevices.filter(d => d.type === 'rtr');
@@ -1590,13 +1618,25 @@ function assignIPsFromVLSM(){
 
   function assignRouterFromLan(d){
     const officeKey = getDeviceOfficeKey(d);
+    const firstLan = getFirstLanForOffice(officeKey);
+    // Professional LAN policy: first router in an office uses the gateway IP (network+1)
+    if (firstLan && firstLan.s && firstLan.s.gateway && !routerGwTaken[officeKey]){
+      routerGwTaken[officeKey] = true;
+      d.subnet = firstLan.s.network;
+      d.prefix = '/' + firstLan.s.prefix;
+      d.gw     = firstLan.s.gateway || '';
+      d.ip     = firstLan.s.gateway;
+      d.p2p    = d.p2p || '—';
+      return;
+    }
+    // Any additional routers fall back to the LAN host pool
     const t = takeFromLanOffice(officeKey);
     if (t && t.ip && t.sub){
       d.subnet = t.sub.network;
       d.prefix = '/' + t.sub.prefix;
       d.gw     = t.sub.gateway || '';
       d.ip     = t.ip;
-      d.p2p    = '—';
+      d.p2p    = d.p2p || '—';
     } else {
       d.subnet = '—';
       d.prefix = '—';
@@ -1626,18 +1666,14 @@ function assignIPsFromVLSM(){
     const ipA = pool.hosts[0];
     const ipB = pool.hosts[1];
 
-    // Assign WAN /31 addresses
-    aDev.subnet = pool.s.network;
-    aDev.prefix = '/' + pool.s.prefix;
-    aDev.gw     = pool.s.gateway || '';
-    aDev.ip     = ipA;
-    aDev.p2p    = pool.s.network + '/31 • peer ' + ipB;
+    // Assign P2P (/31) interface info WITHOUT overwriting the router LAN assignment
+    aDev.p2pIp   = ipA;
+    aDev.p2pPeer = ipB;
+    aDev.p2p     = pool.s.network + '/31 • ' + ipA + ' ↔ ' + ipB;
 
-    bDev.subnet = pool.s.network;
-    bDev.prefix = '/' + pool.s.prefix;
-    bDev.gw     = pool.s.gateway || '';
-    bDev.ip     = ipB;
-    bDev.p2p    = pool.s.network + '/31 • peer ' + ipA;
+    bDev.p2pIp   = ipB;
+    bDev.p2pPeer = ipA;
+    bDev.p2p     = pool.s.network + '/31 • ' + ipB + ' ↔ ' + ipA;
 
     routerPairs.push({
       cidr: pool.s.network + '/31',
@@ -1655,19 +1691,14 @@ function assignIPsFromVLSM(){
     const pool = p2pPools[p2pIndex++];
 
     const ipA = pool.hosts[0];
-    const ipB = pool.hosts[1];
+    const ipB = pool.hosts[1];    // Attach /31 P2P info (keep LAN gateway/subnet in the main columns)
+    d1.p2pIp   = ipA;
+    d1.p2pPeer = ipB;
+    d1.p2p     = pool.s.network + '/31 • ' + ipA + ' ↔ ' + ipB;
 
-    d1.subnet = pool.s.network;
-    d1.prefix = '/' + pool.s.prefix;
-    d1.gw     = pool.s.gateway || '';
-    d1.ip     = ipA;
-    d1.p2p    = pool.s.network + '/31 • peer ' + ipB;
-
-    d2.subnet = pool.s.network;
-    d2.prefix = '/' + pool.s.prefix;
-    d2.gw     = pool.s.gateway || '';
-    d2.ip     = ipB;
-    d2.p2p    = pool.s.network + '/31 • peer ' + ipA;
+    d2.p2pIp   = ipB;
+    d2.p2pPeer = ipA;
+    d2.p2p     = pool.s.network + '/31 • ' + ipB + ' ↔ ' + ipA;
 
     routerPairs.push({
       cidr: pool.s.network + '/31',
@@ -1676,9 +1707,12 @@ function assignIPsFromVLSM(){
     });
   }
 
-  // 1c) Any leftover routers get LAN addresses (no /31 available)
-  autoQueue.forEach(d => {
-    assignRouterFromLan(d);
+  // 1c) Ensure every router has a LAN assignment in the main columns (gateway/subnet/prefix).
+  // Routers that were paired for /31 still need their LAN interface shown as Assigned IP.
+  routerDevices.forEach(d => {
+    if (!d.subnet || d.subnet === '—' || d.subnet === '') {
+      assignRouterFromLan(d);
+    }
   });
 // 2) Modems – last usable IP of the FIRST LAN of THEIR office
   const modemDevices  = topoDevices.filter(d => d.type === 'mdm');
@@ -1790,7 +1824,7 @@ function assignIPsFromVLSM(){
       d.prefix = '—';
       d.gw     = '—';
       d.ip     = '—';
-      d.p2p    = '—';
+      d.p2p    = d.p2p || '—';
       return;
     }
 
