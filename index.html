@@ -57,10 +57,6 @@
 
   /* === Topology Builder (merged) === */
   #topoBuilder{margin-top:16px}
-  #topoToolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
-  #topoToolbar .mini{padding:8px 12px;border-radius:10px}
-  #palette{display:flex;gap:8px;flex-wrap:wrap}
-  .paletteBtn{background:#1b2a44;color:#cde2ff;border:1px solid #2a4270;padding:8px 10px;border-radius:10px;cursor:pointer}
   #topoCanvas{position:relative;min-height:360px;background:#0f1422;border:1px dashed #334;border-radius:12px;margin-top:10px;user-select:none;overflow:hidden}
   .node{position:absolute;left:12px;top:12px;padding:8px 10px;border-radius:10px;border:1px solid #2a4270;background:#142745;color:#cde2ff;cursor:grab;display:flex;gap:6px;align-items:center}
   .node:active{cursor:grabbing}
@@ -108,8 +104,6 @@ select, input[type='number'] { color: #ffffff !important; }
   }
 
 
-/* === UI Simplification Patch: hide Topology placement UI (keep logic intact) === */
-#topoToolbar, #topoCanvas, #topology, .topology, [data-section="topology"] { display: none !important; }
 
 
 /* === UI Simplification Patch: per-office device controls === */
@@ -135,6 +129,9 @@ select, input[type='number'] { color: #ffffff !important; }
 
 /* Stack the VLSM inputs under LAN blocks without moving DOM */
 .twoCol{grid-template-columns:1fr !important}
+
+.noEndpointsBadge{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;font-size:12px;line-height:1.2;
+  border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#d5e6ff;opacity:.9}
 </style>
 
 <!-- PDF libs -->
@@ -445,18 +442,7 @@ select, input[type='number'] { color: #ffffff !important; }
       <!-- Topology Builder -->
       <div id="topoBuilder" class="out">
         <h3 style="margin:0 0 8px">Topology Builder</h3>
-        <small>Add devices and drag them on the canvas. When you click <b>Run VLSM</b>, subnets and IPs are auto-assigned to devices (heuristic).</small>
-        <div id="topoToolbar">
-          <div id="palette">
-            <button type="button" class="paletteBtn" data-type="mdm">+ Modem</button>
-            <button type="button" class="paletteBtn" data-type="rtr">+ Router</button>
-            <button type="button" class="paletteBtn" data-type="swi">+ Switch</button>
-            <button type="button" class="paletteBtn" data-type="pc">+ PC</button>
-          </div>
-          <div id="officeDefaultWrap" class="mini" style="display:flex;gap:8px;align-items:center"><span style="white-space:nowrap">Current office:</span><select id="defaultOfficeSel" class="officeSel" style="min-width:220px;max-width:240px"></select></div>
-          <button id="clearTopo" class="mini">Clear Topology</button>
-        </div>
-        <div id="topoCanvas" class="out"></div>
+<div id="topoCanvas" class="out" style="display:none !important; height:0; min-height:0; border:0; padding:0; margin:0; overflow:hidden"></div>
         <div id="assignWrap" class="out">
           <div style="overflow:auto">
             <table id="assignTbl">
@@ -932,8 +918,9 @@ function removeOfficeData(officeName){
     const vtbody = document.querySelector('#vlsmTbl tbody');
     if (vtbody){
       Array.from(vtbody.querySelectorAll('tr')).forEach(tr=>{
-        const cell = tr.children[0] ? tr.children[0].textContent.trim() : '';
-        if (cell === officeName) tr.remove();
+        const cellEl = tr.children[0];
+        const raw = (cellEl && cellEl.dataset && cellEl.dataset.office) ? String(cellEl.dataset.office).trim() : (cellEl ? cellEl.textContent.trim() : '');
+        if (raw === officeName) tr.remove();
       });
     }
   }catch(e){ /* no-op */ }
@@ -1128,10 +1115,11 @@ function alignDown(n,c){ const mask=c===0?0:(~0<<(32-c))>>>0; return n & mask; }
 function alignUp(n,c){ const size=2**(32-c); return (n + size - 1) & ~(size - 1); }
 function classfulBaseCIDR(cls){ if(cls==='A')return 8; if(cls==='B')return 16; if(cls==='C')return 24; return 24; }
 function computeBase(ipInt,cls,baseSel){ let baseCidr=(baseSel==='auto')?classfulBaseCIDR(cls):Number(baseSel); const baseNet=alignDown(ipInt,baseCidr); const baseBc=baseNet | (~((~0<<(32-baseCidr))>>>0))>>>0; return {baseCidr,baseNet,baseBc}; }
-function toDhcpPool(firstInt,lastInt,tailReserved,reserveGw){
+function toDhcpPool(firstInt,lastInt,tailReserved,headReserved,reserveGw){
   const rg = (reserveGw===undefined)? true : !!reserveGw;
   const tr = Math.max(0, Number(tailReserved||0) | 0);
-  const start = firstInt + (rg ? 1 : 0);
+  const hr = Math.max(0, Number(headReserved||0) | 0);
+  const start = firstInt + (rg ? 1 : 0) + hr;
   const end   = lastInt  - tr;
   return (end>=start)? (intToIp(start)+' - '+intToIp(end)) : '—';
 }
@@ -1148,9 +1136,18 @@ function runVLSM(){
   // Build needs from Topology by office
   const officeCounts = countDevicesByOffice(); // {Office:count}
   const officeTypeCounts = countDevicesByOfficeAndType();
-  const tailReservedForOffice = (name)=>{
+    const tailReservedForOffice = (name)=>{
     const o = (officeTypeCounts && officeTypeCounts[name]) ? officeTypeCounts[name] : {};
-    return (o.mdm||0) + (o.swi||0);
+    // Tail-reserved addresses (excluded from DHCP pool and taken from the end of the FIRST LAN):
+    //  - Modem(s): last usable(s)
+    //  - Switch(es): right before modem(s)
+    return (o.mdm||0) + (o.swi||0) + Math.max(0,(o.rtr||0)-1);
+  };
+  const headReservedForOffice = (name)=>{
+    const o = (officeTypeCounts && officeTypeCounts[name]) ? officeTypeCounts[name] : {};
+    // Head-reserved addresses (excluded from DHCP pool and taken from the start of the FIRST LAN after the gateway):
+    //  - (none)
+    return 0;
   };
   // If no offices defined, bail
   const offices = Object.keys(officeCounts);
@@ -1353,18 +1350,30 @@ function runVLSM(){
       lastInt  = subnetBc  - 1;
       // Display policy: if gateway is reserved, move "First" one up; reserve tail IPs only if those devices exist
       const tailReserved = tailReservedForOffice(item.name);
-      let dispFirst = firstInt + (addGw ? 1 : 0);
+      const headReserved = headReservedForOffice(item.name);
+      let dispFirst = firstInt + (addGw ? 1 : 0) + headReserved;
       let dispLast  = lastInt  - tailReserved;
 gw    = intToIp(firstInt);
       first = intToIp(dispFirst);
       last  = intToIp(dispLast);
     }
     // DHCP pool should exclude the gateway and any tail-reserved device addresses (switch/modem)
-    const dhcp=(cidr<=30)? toDhcpPool(firstInt,lastInt,tailReservedForOffice(item.name),addGw) : '—';
+    // DHCP pool depends on whether there are any client endpoints (PC + Others) in this office
+    const tc = officeTypeCounts[item.name] || {};
+    const dhcpClients = (tc.pc||0) + (tc.oth||0);
 
+    const firstDisplay = (dhcpClients===0) ? '—' : first;
+    const lastDisplay  = (dhcpClients===0) ? '—' : last;
+
+    const dhcp = (cidr<=30 && dhcpClients>0)
+      ? toDhcpPool(firstInt,lastInt,tailReservedForOffice(item.name),headReservedForOffice(item.name),addGw)
+      : '—';
+
+    const officeBadge = (dhcpClients===0 && cidr!==31) ? `<span class="noEndpointsBadge">Infrastructure only</span>` : '';
+    const noEndpointsTitle = (dhcpClients===0 && cidr!==31) ? 'No endpoints (Infrastructure only): host range is not shown; infrastructure addresses are reserved at the tail.' : '';
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${item.name}</td><td>${need}</td><td>/${cidr}</td><td>${mask}</td><td>${wc}</td>
-      <td>${intToIp(subnetNet)}</td><td>${gw}</td><td>${first}</td><td>${last}</td><td>${intToIp(subnetBc)}</td><td>${dhcp}</td>`;
+    tr.innerHTML=`<td data-office="${item.name}">${item.name}${officeBadge}</td><td>${need}</td><td>/${cidr}</td><td>${mask}</td><td>${wc}</td>
+      <td>${intToIp(subnetNet)}</td><td>${gw}</td><td data-ip='${first}' title="${noEndpointsTitle}">${firstDisplay}</td><td data-ip='${last}' title="${noEndpointsTitle}">${lastDisplay}</td><td>${intToIp(subnetBc)}</td><td>${dhcp}</td>`;
     tbody.appendChild(tr);
     cursor=subnetBc+1;
   }
@@ -1460,9 +1469,9 @@ function getVlsmRows(){
   const table=document.getElementById('vlsmTbl'); if(!table) return [];
   const rows=[...table.querySelectorAll('tbody tr')];
   return rows.map(r=>{
-    const t=[...r.cells].map(c=>c.textContent.trim());
+    const t=[...r.cells].map(c=>((c.dataset&&c.dataset.ip)?String(c.dataset.ip).trim():c.textContent.trim()));
     if(t.length<11 || !t[2]?.startsWith('/')) return null;
-    const office=t[0];
+    const office=(r.cells[0] && r.cells[0].dataset && r.cells[0].dataset.office)?String(r.cells[0].dataset.office).trim():t[0];
     const prefix=Number(t[2].replace('/',''));
     return { office, need:Number(t[1])||0, prefix, network:t[5], gateway:t[6], first:t[7], last:t[8], broadcast:t[9] };
   }).filter(Boolean);
@@ -1619,7 +1628,12 @@ function assignIPsFromVLSM(){
   function assignRouterFromLan(d){
     const officeKey = getDeviceOfficeKey(d);
     const firstLan = getFirstLanForOffice(officeKey);
-    // Professional LAN policy: first router in an office uses the gateway IP (network+1)
+
+    // Policy:
+    //  - First router in an office uses the gateway IP (network+1).
+    //  - Any additional routers in the same office are treated as "head-reserved" devices
+    //    (assigned later from the start of the FIRST LAN (immediately after the gateway)),
+    //    so they take predictable fixed IPs right after the gateway (typical field practice).
     if (firstLan && firstLan.s && firstLan.s.gateway && !routerGwTaken[officeKey]){
       routerGwTaken[officeKey] = true;
       d.subnet = firstLan.s.network;
@@ -1627,23 +1641,27 @@ function assignIPsFromVLSM(){
       d.gw     = firstLan.s.gateway || '';
       d.ip     = firstLan.s.gateway;
       d.p2p    = d.p2p || '—';
+      d._needsHeadRouter = false;
       return;
     }
-    // Any additional routers fall back to the LAN host pool
-    const t = takeFromLanOffice(officeKey);
-    if (t && t.ip && t.sub){
-      d.subnet = t.sub.network;
-      d.prefix = '/' + t.sub.prefix;
-      d.gw     = t.sub.gateway || '';
-      d.ip     = t.ip;
+
+    if (firstLan && firstLan.s){
+      // Defer assignment; will be popped from firstLan.hosts later.
+      d.subnet = firstLan.s.network;
+      d.prefix = '/' + firstLan.s.prefix;
+      d.gw     = firstLan.s.gateway || '';
+      d.ip     = d.ip || '—';
       d.p2p    = d.p2p || '—';
-    } else {
-      d.subnet = '—';
-      d.prefix = '—';
-      d.gw     = '—';
-      d.ip     = '—';
-      d.p2p    = '—';
+      d._needsHeadRouter = true;
+      return;
     }
+
+    d.subnet = '—';
+    d.prefix = '—';
+    d.gw     = '—';
+    d.ip     = '—';
+    d.p2p    = '—';
+    d._needsHeadRouter = false;
   }
 
   const configuredPairs = getConfiguredOfficePairs();
@@ -1714,6 +1732,18 @@ function assignIPsFromVLSM(){
       assignRouterFromLan(d);
     }
   });
+
+  // Extra routers (beyond the gateway router) are assigned later from the tail of the FIRST LAN
+  // (after modem/switch reservation). Group them by office now.
+  const extraRoutersByOffice = {};
+  routerDevices.forEach(d => {
+    if (d && d.type === 'rtr' && d._needsHeadRouter){
+      const k = getDeviceOfficeKey(d);
+      if (!extraRoutersByOffice[k]) extraRoutersByOffice[k] = [];
+      extraRoutersByOffice[k].push(d);
+    }
+  });
+
 // 2) Modems – last usable IP of the FIRST LAN of THEIR office
   const modemDevices  = topoDevices.filter(d => d.type === 'mdm');
   const switchDevices = topoDevices.filter(d => d.type === 'swi');
@@ -1775,6 +1805,30 @@ function assignIPsFromVLSM(){
           d.p2p    = '—';
         }
       });
+
+      // 2c) Assign extra router(s) in this office from the TAIL of the remaining host list
+      // (treated as infrastructure, reserved near the end; excluded from DHCP pool).
+      const officeExtraRouters = extraRoutersByOffice[officeKey] || [];
+      officeExtraRouters.forEach(d => {
+        if (d && d._needsHeadRouter){
+          if (firstLan.hosts.length){
+            const ip = firstLan.hosts.pop();
+            d.subnet = firstLan.s.network;
+            d.prefix = '/' + firstLan.s.prefix;
+            d.gw     = firstLan.s.gateway || '';
+            d.ip     = ip;
+            d.p2p    = d.p2p || '—';
+          } else {
+            d.subnet = '—';
+            d.prefix = '—';
+            d.gw     = '—';
+            d.ip     = '—';
+            d.p2p    = d.p2p || '—';
+          }
+          d._needsHeadRouter = false;
+        }
+      });
+
     } else {
       // Office has no LAN: leave modem/switch unassigned
       officeModems.concat(officeSwitches).forEach(d => {
@@ -1867,9 +1921,7 @@ function assignIPsFromVLSM(){
 
 
 
-/* Bind palette */
-document.querySelectorAll('.paletteBtn').forEach(btn=> btn.addEventListener('click', ()=> addDevice(btn.dataset.type)));
-document.getElementById('clearTopo').addEventListener('click', clearTopology);
+/* Bind palette (removed: legacy UI). Devices are added per-office now. */
 </script>
 
 <script>
